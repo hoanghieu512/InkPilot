@@ -18,7 +18,8 @@ export const RSS_SOURCES: RssSourceConfig[] = [
     category: 'crypto',
     tier: 1,
     fetchIntervalHours: 1,
-    enabled: true,
+    // disabled: Cloudflare blocks all non-browser RSS requests (HTTP 403); no alternate endpoint found
+    enabled: false,
     language: 'en',
   },
   {
@@ -76,11 +77,12 @@ export const RSS_SOURCES: RssSourceConfig[] = [
   {
     slug: 'base-blog',
     name: 'Base Blog',
-    url: 'https://base.mirror.xyz/feed.xml',
+    // original base.mirror.xyz/feed.xml is dead (404); blog.base.org/feed requires Cloudflare JS challenge (403)
+    url: 'https://blog.base.org/feed',
     category: 'protocol',
     tier: 2,
     fetchIntervalHours: 1,
-    enabled: true,
+    enabled: false,
     language: 'en',
   },
 

@@ -20,7 +20,8 @@ async function main(): Promise<void> {
   initDb();
   seedSources(RSS_SOURCES);
 
-  const result = await runFetch();
+  const verbose = process.argv.includes('--verbose');
+  const result = await runFetch(undefined, undefined, verbose);
 
   console.log(`\nFetch complete:`);
   console.log(`  Sources checked: ${result.sourcesChecked}`);

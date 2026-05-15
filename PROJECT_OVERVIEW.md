@@ -43,7 +43,7 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 
 | EN | VI |
 |----|----|
-| **Multi-source RSS scraping** — parallel fetch via `Promise.allSettled`, 11 configurable sources (8 enabled) across 4 tiers, 10s timeout per feed; one feed failure doesn't crash the rest. | **Scrape RSS nhiều nguồn** — fetch song song qua `Promise.allSettled`, 11 nguồn (8 enabled) chia 4 tier, timeout 10 giây; lỗi 1 feed không ảnh hưởng các feed khác. |
+| **Multi-source RSS scraping** — parallel fetch via `Promise.allSettled`, 11 configurable sources (6 enabled) across 4 tiers, 10s timeout per feed; one feed failure doesn't crash the rest. | **Scrape RSS nhiều nguồn** — fetch song song qua `Promise.allSettled`, 11 nguồn (6 enabled) chia 4 tier, timeout 10 giây; lỗi 1 feed không ảnh hưởng các feed khác. |
 | **AI relevance filter (Haiku)** — batch up to 10 articles per call, decimal scores 0–10 (e.g. 7.2, 8.5), categories (L2, DeFi, Protocol, AI, Market...), reasoning + suggested angle; drops below 6 → auto-dismissed. | **Lọc AI (Haiku)** — batch tới 10 bài/call, điểm decimal 0–10 (vd 7.2, 8.5), phân loại + reasoning + suggested angle; dưới 6 → auto-dismissed. |
 | **Tiered inbox** — HOT (8+) shown by default with suggested angles, OTHER (6–7.9) via `--other`, dismissed hidden; `--all` to show everything. Recency filter: 30 days default, `--days=N` to override. | **Tiered inbox** — HOT (8+) hiện mặc định với suggested angle, OTHER (6–7.9) qua `--other`, dismissed ẩn; `--all` hiện tất cả. Recency filter: 30 ngày mặc định, `--days=N` để override. |
 | **Research brief (Sonnet)** — `npm run brief <id>` generates: WHY IT MATTERS (2–3 sentences), related stories (last 7 days, score ≥ 6), suggested angles (VN primary + EN). Personalized via user context files. Cached in DB — second run skips API. | **Research brief (Sonnet)** — `npm run brief <id>` tạo: WHY IT MATTERS (2–3 câu), bài liên quan (7 ngày, score ≥ 6), suggested angles (VN chính + EN). Cá nhân hóa qua user context files. Cache trong DB — lần 2 không gọi API. |
@@ -55,6 +55,8 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 | **Brief cache** — Sonnet brief serialized as JSON in `filter_results.ai_context`; second `npm run brief` returns cached result without API call; `--refresh` skips cache and overwrites. | **Cache brief** — JSON trong `filter_results.ai_context`; lần 2 không gọi Sonnet; `--refresh` bỏ qua cache. |
 | **Angle markdown export** — `angle-exporter.ts` reads template with `__KEY__` placeholders (Obsidian-safe; no `{{}}` in YAML), writes `YYYY-MM-DD-<articleId>-<slug>.md`; missing template logs warning only. | **Export angle .md** — template `__KEY__`, ghi file theo ngày + id + slug; thiếu template chỉ warn. |
 | **Cost tracking** — Haiku + Sonnet token usage (input/output) and USD estimate per operation. | **Theo dõi chi phí** — đếm token Haiku + Sonnet (in/out) và ước tính USD mỗi lần chạy. |
+| **Source status** — `npm run sources:status` prints per-source table: enabled/disabled, article count, last article date, last fetch timestamp; no API key required. | **Trạng thái nguồn** — `npm run sources:status` in bảng per-source: enabled/disabled, số bài, ngày bài gần nhất, lần fetch cuối; không cần API key. |
+| **Verbose fetch** — `npm run fetch -- --verbose` logs per-feed item count + new/dup breakdown after each source; default output unchanged. | **Fetch verbose** — `npm run fetch -- --verbose` log per-feed số item + new/dup sau mỗi nguồn; output mặc định không đổi. |
 
 **EN — Not yet built (planned slices):** X API adapter (Slice 5), TUI / Ink (Slice 6+).
 **VI — Chưa xây (slice sắp tới):** X API adapter (Slice 5), TUI / Ink (Slice 6+).
@@ -68,7 +70,7 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 ```mermaid
 flowchart TB
   subgraph External["External / Bên ngoài"]
-    RSS["RSS Feeds\n(8 enabled sources)"]
+    RSS["RSS Feeds\n(6 enabled sources)"]
     WEB["Source websites\n(OG image)"]
     AN_H["Anthropic API\nClaude Haiku"]
     AN_S["Anthropic API\nClaude Sonnet"]
@@ -78,9 +80,10 @@ flowchart TB
   end
 
   subgraph CLI["CLI Scripts"]
-    FETCH["scripts/fetch.ts\nnpm run fetch"]
+    FETCH["scripts/fetch.ts\nnpm run fetch [--verbose]"]
     LIST["scripts/list.ts\nnpm run list"]
     BRIEF["scripts/brief.ts\nnpm run brief <id>"]
+    STATUS["scripts/sources-status.ts\nnpm run sources:status"]
   end
 
   subgraph FeedFetcher["feed-fetcher/"]
@@ -136,6 +139,7 @@ flowchart TB
   SB --> UC
   BO --> FMT
   CFG --> DB
+  STATUS --> SRC
   RSSCFG --> SRC
 ```
 
@@ -144,9 +148,10 @@ flowchart TB
 ```mermaid
 flowchart TB
   CLI["npm scripts"]
-  CLI --> FETCH["npm run fetch\nscrape → dedup → OG → Haiku score"]
+  CLI --> FETCH["npm run fetch [--verbose]\nscrape → dedup → OG → Haiku score"]
   CLI --> LIST["npm run list\n--hot · --other · --all\n--today · --days=N"]
   CLI --> BRIEF["npm run brief <id> [--refresh]\nSonnet → cache → angle .md"]
+  CLI --> STATUS["npm run sources:status\nsource health + article counts"]
   CLI --> TEST["npm test\nvitest run (39 tests)"]
 
   FETCH --> DB[("SQLite\n~/.inkpilot/inkpilot.db")]
@@ -155,6 +160,7 @@ flowchart TB
   BRIEF --> DB
   BRIEF --> AN_S["Anthropic API\nClaude Sonnet"]
   BRIEF --> UC["User context files"]
+  STATUS --> DB
 ```
 
 ### 4.3 Module notes
@@ -177,9 +183,10 @@ flowchart TB
 
 | Path | EN (role) | VI (vai trò) |
 |------|-----------|--------------|
-| `src/scripts/fetch.ts` | CLI entry: seed sources → scrape RSS → insert → OG → Haiku score → cost summary | CLI: seed → scrape → insert → OG → score → chi phí |
+| `src/scripts/fetch.ts` | CLI entry: seed sources → scrape RSS → insert → OG → Haiku score → cost summary; `--verbose` flag logs per-source item/new/dup counts | CLI: seed → scrape → insert → OG → score → chi phí; `--verbose` log per-source |
 | `src/scripts/list.ts` | CLI entry: tiered inbox (HOT/OTHER), `--hot`, `--other`, `--all`, `--today`, `--days=N`, `--source`, `--state` | CLI list: tiered inbox, filter đa dạng, recency filter |
 | `src/scripts/brief.ts` | CLI: `npm run brief <id> [--refresh]` → load → cache? → Sonnet? → cache DB → export angle `.md` → print | CLI brief + refresh + export vault |
+| `src/scripts/sources-status.ts` | CLI: `npm run sources:status` — init DB → seed → `getSourcesStatus()` → print aligned table (name, enabled, article count, last article date, last fetch) | CLI trạng thái nguồn — bảng per-source, không cần API key |
 | `src/config/index.ts` | Loads `.env` → exports typed `Config`; exports `AI_MODELS` (Haiku + Sonnet API model IDs) | Load `.env` + `AI_MODELS` |
 | `src/config/types.ts` | `Config` interface | Interface `Config` |
 | `src/config/rss-sources.ts` | Source of truth for all RSS feeds: 11 sources × 4 tiers, typed `RssSourceConfig[]` | Danh sách RSS: 11 nguồn × 4 tier |
@@ -194,7 +201,7 @@ flowchart TB
 | `src/database/schema.ts` | `CREATE TABLE` for all 7 tables + indexes | Schema 7 bảng + index |
 | `src/database/index.ts` | Singleton DB connection (`initDb`/`getDb`/`closeDb`/`resetDb`); WAL mode, foreign keys | Kết nối DB singleton; WAL mode |
 | `src/database/migrations.ts` | Runs schema; auto-migrates old `sources` and `filter_results` tables | Chạy schema; tự migrate bảng cũ |
-| `src/database/sources.ts` | `seedSources` (upsert), `getEnabledSources`, `getSourceBySlug`, `updateLastFetchedAt` | CRUD bảng sources (upsert) |
+| `src/database/sources.ts` | `seedSources` (upsert), `getEnabledSources`, `getSourceBySlug`, `updateLastFetchedAt`, `getSourcesStatus` (JOIN articles for per-source counts) | CRUD bảng sources (upsert) + status query |
 | `src/database/articles.ts` | `insertArticle` (dedup), `getArticlesWithFilter` (flexible JOIN query), `updateOgImage` | CRUD bảng articles |
 | `src/database/article-states.ts` | `createArticleState`, `updateArticleState`, `getArticleState` | CRUD bảng article_states |
 | `src/database/filter-results.ts` | `insertFilterResult`, `isArticleScored`, `getUnscoredArticleIds`, `cacheArticleBrief`, `getCachedBrief` | CRUD bảng filter_results + cache brief |
@@ -222,7 +229,7 @@ sequenceDiagram
   participant CLI as npm run fetch
   participant SEED as seedSources
   participant FF as feed-fetcher
-  participant RSS as RSS Feeds (8)
+  participant RSS as RSS Feeds (6)
   participant DB as SQLite
   participant OG as og-extractor
   participant WEB as Source websites
@@ -323,8 +330,10 @@ post_metrics     — engagement metrics (planned — Slice 5+)
 
 | Tier | Nguồn | Category | Language | Interval | Status |
 |------|-------|----------|----------|----------|--------|
-| 1 | The Block, Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
-| 2 | Ethereum Foundation, Vitalik's Blog, Base Blog | protocol | en | 1h | enabled |
+| 1 | Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
+| 1 | The Block | crypto | en | 1h | **disabled** — Cloudflare blocks all non-browser requests (HTTP 403) |
+| 2 | Ethereum Foundation, Vitalik's Blog | protocol | en | 1h | enabled |
+| 2 | Base Blog | protocol | en | 1h | **disabled** — `base.mirror.xyz` dead; `blog.base.org` behind Cloudflare JS challenge |
 | 3 | Coin68, CoinCu News, Tạp Chí Bitcoin | vietnamese | vi | 2h | CoinCu enabled; Coin68 + TCB disabled |
 | 4 | MarkTechPost | ai | en | 2h | disabled |
 
@@ -377,8 +386,7 @@ post_metrics     — engagement metrics (planned — Slice 5+)
 
 | EN | VI |
 |----|----|
-| **Base Blog feed 404** — `base.mirror.xyz/feed.xml` returns 404; source enabled but no articles fetched. | **Base Blog feed 404** — `base.mirror.xyz/feed.xml` trả 404; nguồn enabled nhưng không fetch được bài. |
-| **3 feeds disabled** — Coin68 (malformed XML), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). | **3 feed disabled** — Coin68 (XML lỗi), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). |
+| **5 feeds disabled** — The Block (Cloudflare 403, all UA variants blocked), Base Blog (`base.mirror.xyz` dead, `blog.base.org` Cloudflare-protected), Coin68 (malformed XML), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). | **5 feed disabled** — The Block (Cloudflare 403), Base Blog (URL chết + Cloudflare), Coin68 (XML lỗi), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). |
 | **No scheduler** — `npm run fetch` runs manually or via external cron. | **Không có scheduler** — `npm run fetch` chạy tay hoặc cron ngoài. |
 | **No X API yet** — posts table exists but no publishing adapter (Slice 5). | **Chưa có X API** — bảng posts đã có nhưng chưa có adapter đăng bài (Slice 5). |
 | **`recasts` column name** — `post_metrics` table still uses `recasts`; will rename to `reposts` in X adapter slice. | **Tên cột `recasts`** — bảng `post_metrics` vẫn dùng `recasts`; sẽ đổi thành `reposts` khi làm X adapter. |

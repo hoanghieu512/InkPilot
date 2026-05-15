@@ -55,3 +55,28 @@ export function updateLastFetchedAt(sourceId: number, db?: Database.Database): v
   const conn = db ?? getDb();
   conn.prepare("UPDATE sources SET last_fetched_at = datetime('now') WHERE id = ?").run(sourceId);
 }
+
+export interface SourceStatusRow {
+  id: number;
+  slug: string;
+  name: string;
+  enabled: number;
+  tier: number;
+  last_fetched_at: string | null;
+  article_count: number;
+  last_article_date: string | null;
+}
+
+export function getSourcesStatus(db?: Database.Database): SourceStatusRow[] {
+  const conn = db ?? getDb();
+  return conn.prepare(`
+    SELECT
+      s.id, s.slug, s.name, s.enabled, s.tier, s.last_fetched_at,
+      COUNT(a.id) AS article_count,
+      MAX(a.published_at) AS last_article_date
+    FROM sources s
+    LEFT JOIN articles a ON a.source_id = s.id
+    GROUP BY s.id
+    ORDER BY s.tier, s.name
+  `).all() as SourceStatusRow[];
+}

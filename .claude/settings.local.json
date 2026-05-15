@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(andrej-karpathy-skills:karpathy-guidelines)",
+      "Skill(andrej-karpathy-skills:karpathy-guidelines:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -A \"InkPilot/0.1 RSS Reader\" \"https://www.theblock.co/rss.xml\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://base.mirror.xyz/feed.xml\")",
+      "Bash(curl -s -o /dev/null -w \"\\\\n%{http_code}\" \"https://base.org/blog/feed.xml\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -A \"Mozilla/5.0 \\(compatible; FeedFetcher\\)\" \"https://www.theblock.co/rss.xml\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -A \"Feedly/1.0 \\(+http://www.feedly.com/fetcher.html; like GoogleBot/2.1\\)\" \"https://www.theblock.co/rss.xml\")",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://base.org/blog/feed.xml\")",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://base.org/blog/rss.xml\")",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://base.org/feed.xml\")",
+      "Bash(curl -s \"https://www.base.org/blog\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://www.theblock.co/feeds/rss.xml\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://www.theblock.co/atom.xml\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" \"https://www.theblock.co/rss.xml\")",
+      "Bash(curl -sL \"https://www.base.org/blog\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://www.theblock.co/rss\")",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://theblock.co/rss.xml\")",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://paragraph.xyz/@base/feed\")",
+      "Bash(curl -sL -w \"\\\\n\" \"https://paragraph.xyz/@base/feed\")",
+      "Bash(npm test *)"
+    ]
+  }
+}

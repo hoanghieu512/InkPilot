@@ -6,7 +6,7 @@ Công cụ CLI **local-first** phục vụ nghiên cứu nội dung crypto — s
 
 ## Overview
 
-**TypeScript + Node.js**, scrape RSS song song từ 11 nguồn (8 enabled), dedup theo URL, score bằng **Claude Haiku** (batch 10 bài/call), generate **research brief** bằng **Claude Sonnet** (per article), lưu vào SQLite (`better-sqlite3`). Mỗi bài viết được theo dõi qua state machine (`new` → `read` → `starred` → `drafted` → `posted` → `dismissed`). Bài score < 6 tự động `dismissed`.
+**TypeScript + Node.js**, scrape RSS song song từ 11 nguồn (6 enabled), dedup theo URL, score bằng **Claude Haiku** (batch 10 bài/call), generate **research brief** bằng **Claude Sonnet** (per article), lưu vào SQLite (`better-sqlite3`). Mỗi bài viết được theo dõi qua state machine (`new` → `read` → `starred` → `drafted` → `posted` → `dismissed`). Bài score < 6 tự động `dismissed`.
 
 Cấu hình credentials qua `.env`; nguồn RSS chỉnh trong `src/config/rss-sources.ts`.
 
@@ -16,7 +16,7 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 
 ## Features
 
-- **RSS scraper** — scrape 8 nguồn song song (`Promise.allSettled`), dedup theo URL (`INSERT OR IGNORE`), timeout 10 giây/feed.
+- **RSS scraper** — scrape 6 nguồn song song (`Promise.allSettled`), dedup theo URL (`INSERT OR IGNORE`), timeout 10 giây/feed.
 - **AI scoring (Haiku)** — batch scoring 10 bài/call, điểm 0–10 (decimal, e.g. 7.2, 8.5) + category + reasoning + suggested angle; cost tracking (token + USD).
 - **Tiered inbox** — HOT (score 8+) hiện mặc định với suggested angle, OTHER (6–7.9), Dismissed (< 6) tự ẩn. Recency filter 30 ngày mặc định, `--days=N` để override.
 - **Research brief (Sonnet)** — `npm run brief <id>` generate brief cho bất kỳ article: WHY IT MATTERS + related stories + suggested angles (VN primary + EN). Hook-first angle prompts (không tóm tắt lại tin). Cache trong DB — lần 2 không gọi API; `npm run brief -- <id> --refresh` để gọi lại Sonnet và ghi đè cache.
@@ -26,6 +26,8 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 - **Article state machine** — `new` → `read` → `starred` → `drafted` → `posted` → `dismissed`.
 - **Source upsert** — `seedSources()` dùng `ON CONFLICT DO UPDATE` — thay đổi URL hoặc enabled/disabled trong config tự sync vào DB.
 - **Graceful degradation** — lỗi 1 feed hoặc Haiku/Sonnet API failure không crash toàn bộ.
+- **Source status** — `npm run sources:status` in bảng per-source: enabled/disabled, số bài, ngày bài gần nhất, lần fetch cuối; không cần Anthropic API key.
+- **Verbose fetch** — `npm run fetch -- --verbose` log per-feed: số item feed trả về, new vs duplicate sau mỗi nguồn.
 - **39 tests** — Vitest, in-memory SQLite; bao gồm dedup, seeding, states, mocked Anthropic (cả Haiku và Sonnet), fallback scoring, brief cache.
 
 ---
@@ -72,16 +74,23 @@ cp .env.example .env
 | Lệnh | Mô tả |
 |------|--------|
 | `npm run fetch` | Scrape RSS → dedup → insert → OG image → Haiku scoring |
+| `npm run fetch -- --verbose` | Như trên + log per-feed: số item, new vs duplicate |
 
 ```bash
 npm run fetch
 # Output:
 # Fetch complete:
-#   Sources checked: 8
-#   New articles:    18
-#   Duplicates:      905
-#   Scored:          18 (HOT: 4, OTHER: 9, Dismissed: 5)
-#   Cost:            $0.0040 (Haiku: 4.1K in, 1.8K out tokens)
+#   Sources checked: 6
+#   New articles:    14
+#   Duplicates:      823
+#   Scored:          14 (HOT: 3, OTHER: 7, Dismissed: 4)
+#   Cost:            $0.0031 (Haiku: 3.2K in, 1.4K out tokens)
+
+npm run fetch -- --verbose
+# Thêm per-feed log:
+#   Decrypt: 25 items → 3 new, 22 duplicates
+#   Bankless: 18 items → 2 new, 16 duplicates
+#   ...
 ```
 
 ### Xem bài viết (Tiered Inbox)
@@ -190,6 +199,26 @@ Lần 2 chạy cùng article → dùng cache, không gọi API (file angle vẫn
 ══════════════════════════════════════════════════════════════
 ```
 
+### Xem trạng thái nguồn
+
+```bash
+npm run sources:status
+# Output:
+# Sources status:
+#
+#   Source                    Status    Articles  Last article    Last fetch
+#   ──────────────────────────────────────────────────────────────────────
+#   Bankless                  enabled    243 arts  3h ago          2h ago
+#   CoinDesk                  enabled    512 arts  1h ago          1h ago
+#   Decrypt                   enabled    389 arts  2h ago          2h ago
+#   CoinCu News               enabled     87 arts  5h ago          4h ago
+#   Ethereum Foundation Blog  enabled     34 arts  3d ago          2h ago
+#   Vitalik's Blog            enabled     12 arts  14d ago         2h ago
+#   The Block                 disabled     0 arts  —               —
+#   Base Blog                 disabled     0 arts  —               —
+#   ...
+```
+
 ### Test
 
 ```bash
@@ -206,7 +235,7 @@ src/
 ├── config/
 │   ├── index.ts           # Load .env → Config; AI_MODELS (Haiku / Sonnet IDs)
 │   ├── types.ts           # Config interface
-│   └── rss-sources.ts     # Source of truth: 11 feeds (8 enabled) × 4 tiers
+│   └── rss-sources.ts     # Source of truth: 11 feeds (6 enabled) × 4 tiers
 ├── content-filter/
 │   ├── index.ts           # filterNewArticles orchestrator (batch + state update)
 │   ├── haiku-filter.ts    # Anthropic SDK — scoreArticles (batch 10, cost tracking)
@@ -232,9 +261,10 @@ src/
 │   ├── rss-parser.ts      # fetchFeed → FeedItem[]
 │   └── og-extractor.ts    # extractOgImageUrl → string | null
 ├── scripts/
-│   ├── fetch.ts           # CLI: npm run fetch
+│   ├── fetch.ts           # CLI: npm run fetch [--verbose]
 │   ├── list.ts            # CLI: npm run list (tiered inbox, --days=N)
-│   └── brief.ts           # CLI: npm run brief <id> [--refresh]
+│   ├── brief.ts           # CLI: npm run brief <id> [--refresh]
+│   └── sources-status.ts  # CLI: npm run sources:status (per-source health table)
 └── utils/
     └── logger.ts          # Leveled, colored console logging
 templates/
@@ -252,9 +282,11 @@ tests/
 
 | Tier | Nguồn | Loại | Ngôn ngữ | Tần suất | Status |
 |------|-------|------|----------|----------|--------|
-| 1 | The Block, Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
-| 2 | Ethereum Foundation, Vitalik's Blog, Base Blog | protocol | en | 1h | enabled |
-| 3 | Coin68, CoinCu News, Tạp Chí Bitcoin | vietnamese | vi | 2h | Coin68 + TCB disabled |
+| 1 | Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
+| 1 | The Block | crypto | en | 1h | disabled — Cloudflare 403 |
+| 2 | Ethereum Foundation, Vitalik's Blog | protocol | en | 1h | enabled |
+| 2 | Base Blog | protocol | en | 1h | disabled — URL chết + Cloudflare |
+| 3 | Coin68, CoinCu News, Tạp Chí Bitcoin | vietnamese | vi | 2h | CoinCu enabled; Coin68 + TCB disabled |
 | 4 | MarkTechPost | ai | en | 2h | disabled |
 
 Thêm/xóa/sửa nguồn: sửa file `src/config/rss-sources.ts` → thay đổi tự sync vào DB lần fetch tiếp.
@@ -302,6 +334,7 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **Slice 2** — First Fetch (RSS scrape → dedup → SQLite → OG image → CLI list)
 - [x] **Slice 3** — Smart Filter (Claude Haiku scoring → tiered inbox, auto-dismiss, decimal scores, recency filter)
 - [x] **Slice 4** — Research Brief (Claude Sonnet brief → WHY IT MATTERS + related stories + suggested angles, cache, user context)
+- [x] **v0.2.0** — Feed fixes (disable The Block + Base Blog, Cloudflare-blocked), `npm run sources:status`, `--verbose` flag
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
 
@@ -313,6 +346,7 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 |-----|-----------|
 | `Missing required env var: ANTHROPIC_API_KEY` | Điền `ANTHROPIC_API_KEY` trong `.env` |
 | Haiku/Sonnet API error / rate limit | Scoring bỏ qua — bài giữ state `new`; brief trả partial result |
+| The Block / Base Blog không fetch được | Đã disabled do Cloudflare block — xem `npm run sources:status` |
 | Feed timeout / 4xx errors | Bình thường — feed lỗi được bỏ qua, các nguồn khác vẫn chạy |
 | `No scored articles found` | Chạy `npm run fetch` trước; dùng `--all` để xem tất cả kể cả chưa score |
 | `Article #X not found` | Kiểm tra ID bằng `npm run list -- --all`; có thể article không tồn tại |

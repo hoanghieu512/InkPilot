@@ -33,7 +33,7 @@ interface NewArticleRef {
   url: string;
 }
 
-export async function runFetch(db?: Database.Database, skipScoring?: boolean): Promise<FetchResult> {
+export async function runFetch(db?: Database.Database, skipScoring?: boolean, verbose?: boolean): Promise<FetchResult> {
   const sources = getEnabledSources(db);
   logger.info(`Starting fetch for ${sources.length} enabled sources`);
 
@@ -64,6 +64,8 @@ export async function runFetch(db?: Database.Database, skipScoring?: boolean): P
     }
 
     const items = feedResult.value;
+    let sourceNew = 0;
+    let sourceDup = 0;
     for (const item of items) {
       const insertResult = insertArticle({
         url: item.url,
@@ -76,11 +78,17 @@ export async function runFetch(db?: Database.Database, skipScoring?: boolean): P
 
       if (insertResult.inserted && insertResult.id != null) {
         result.newArticles++;
+        sourceNew++;
         createArticleState(insertResult.id, 'new', db);
         allNewArticles.push({ id: insertResult.id, url: item.url });
       } else {
         result.duplicatesSkipped++;
+        sourceDup++;
       }
+    }
+
+    if (verbose) {
+      logger.info(`  ${source.name}: ${items.length} items → ${sourceNew} new, ${sourceDup} duplicates`);
     }
 
     updateLastFetchedAt(source.id, db);
