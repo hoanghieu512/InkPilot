@@ -20,7 +20,8 @@
       "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://theblock.co/rss.xml\")",
       "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://paragraph.xyz/@base/feed\")",
       "Bash(curl -sL -w \"\\\\n\" \"https://paragraph.xyz/@base/feed\")",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS sources (
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   url TEXT NOT NULL UNIQUE,
-  category TEXT NOT NULL CHECK(category IN ('crypto', 'tech', 'ai', 'protocol', 'defi', 'dev', 'vietnamese')),
+  category TEXT NOT NULL CHECK(category IN ('crypto', 'tech', 'ai', 'protocol', 'defi', 'dev', 'vietnamese', 'protocol-l2', 'research-technical')),
   tier INTEGER NOT NULL DEFAULT 1,
   fetch_interval_minutes INTEGER NOT NULL DEFAULT 60,
   enabled INTEGER NOT NULL DEFAULT 1,

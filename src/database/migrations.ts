@@ -7,6 +7,7 @@ const logger = createLogger('database:migrations');
 export function runMigrations(db: Database.Database): void {
   migrateSourcesTable(db);
   migrateFilterResultsTable(db);
+  migrateSourcesCategoryConstraint(db);
   db.exec(CREATE_TABLES);
 
   const tables = db
@@ -35,6 +36,21 @@ function migrateFilterResultsTable(db: Database.Database): void {
   if (!indexInfo.sql.includes('UNIQUE')) {
     logger.info('Migrating filter_results table — adding UNIQUE on article_id');
     db.exec('DROP TABLE IF EXISTS filter_results');
+  }
+}
+
+/** Drop sources table if its CHECK constraint predates protocol-l2 / research-technical categories. */
+function migrateSourcesCategoryConstraint(db: Database.Database): void {
+  const info = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'"
+  ).get() as { sql: string } | undefined;
+  if (!info) return;
+
+  if (!info.sql.includes('protocol-l2')) {
+    logger.info('Migrating sources table — expanding category CHECK constraint');
+    db.pragma('foreign_keys = OFF');
+    db.exec('DROP TABLE IF EXISTS sources');
+    db.pragma('foreign_keys = ON');
   }
 }
 

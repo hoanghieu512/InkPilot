@@ -1,6 +1,6 @@
 export type ArticleState = 'new' | 'read' | 'starred' | 'drafted' | 'posted' | 'dismissed';
 
-export type SourceCategory = 'crypto' | 'protocol' | 'defi' | 'ai' | 'dev' | 'vietnamese';
+export type SourceCategory = 'crypto' | 'protocol' | 'defi' | 'ai' | 'dev' | 'vietnamese' | 'protocol-l2' | 'research-technical';
 
 export interface Source {
   id: number;
