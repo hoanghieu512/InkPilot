@@ -6,10 +6,10 @@
 ## 1. Project Overview | Tổng quan dự án
 
 **EN — What it does**
-A **local-first CLI tool** for crypto content research. It **scrapes RSS feeds** from configurable sources (crypto, protocol, DeFi, AI, Vietnamese), **deduplicates by URL**, **extracts OG images**, and stores everything in a **SQLite database**. New articles are automatically **scored by Claude Haiku** (0–10, decimal) for relevance, with results surfaced in a **tiered inbox** (HOT 8+ / OTHER 6–7.9 / auto-dismissed < 6). Each article includes a **suggested angle** for writing personal takes. For any HOT article, the user can generate a **research brief via Claude Sonnet** — including WHY IT MATTERS, related stories, and bilingual suggested angles (Vietnamese primary + English) personalized to the user's voice and tone. The user **composes posts manually** and publishes to **X (Twitter)** — this is NOT an auto-posting bot.
+A **local-first CLI tool** for crypto content research. It **scrapes RSS feeds** from configurable sources (crypto, protocol, DeFi, AI, Vietnamese), **deduplicates by URL**, **extracts OG images**, and stores everything in a **SQLite database**. New articles are automatically **scored by Claude Haiku** (0–10, decimal) for relevance, with results surfaced in a **tiered inbox** (HOT 7.5+ / OTHER 6–7.4 / auto-dismissed < 6). Each article includes a **suggested angle** for writing personal takes. For any HOT article, the user can generate a **research brief via Claude Sonnet** — including WHY IT MATTERS, related stories, and bilingual suggested angles (Vietnamese primary + English) personalized to the user's voice and tone. The user **composes posts manually** and publishes to **X (Twitter)** — this is NOT an auto-posting bot.
 
 **VI — Ứng dụng làm gì**
-Công cụ **CLI local-first** phục vụ nghiên cứu nội dung crypto. Scrape **RSS** từ nhiều nguồn, **dedup theo URL**, **lấy ảnh OG**, lưu vào **SQLite**. Bài mới tự động được **Claude Haiku chấm điểm** (0–10, decimal) theo relevance, hiển thị trong **tiered inbox** (HOT 8+ / OTHER 6–7.9 / auto-dismissed < 6). Mỗi bài có **suggested angle** để viết take. Với bài HOT, user có thể generate **research brief qua Claude Sonnet** — bao gồm WHY IT MATTERS, bài liên quan, và suggested angles song ngữ (VN primary + EN) cá nhân hóa theo voice/tone của user. Người dùng **tự viết bài** rồi đăng lên **X (Twitter)** — đây KHÔNG phải bot tự động.
+Công cụ **CLI local-first** phục vụ nghiên cứu nội dung crypto. Scrape **RSS** từ nhiều nguồn, **dedup theo URL**, **lấy ảnh OG**, lưu vào **SQLite**. Bài mới tự động được **Claude Haiku chấm điểm** (0–10, decimal) theo relevance, hiển thị trong **tiered inbox** (HOT 7.5+ / OTHER 6–7.4 / auto-dismissed < 6). Mỗi bài có **suggested angle** để viết take. Với bài HOT, user có thể generate **research brief qua Claude Sonnet** — bao gồm WHY IT MATTERS, bài liên quan, và suggested angles song ngữ (VN primary + EN) cá nhân hóa theo voice/tone của user. Người dùng **tự viết bài** rồi đăng lên **X (Twitter)** — đây KHÔNG phải bot tự động.
 
 **EN — Target users**
 Content creators and crypto researchers who want a **structured research pipeline** — automated feed collection, AI-powered relevance scoring, Sonnet-powered research briefs, manual curation, and human-written posts published to X.
@@ -43,9 +43,9 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 
 | EN | VI |
 |----|----|
-| **Multi-source RSS scraping** — parallel fetch via `Promise.allSettled`, 11 configurable sources (6 enabled) across 4 tiers, 10s timeout per feed; one feed failure doesn't crash the rest. | **Scrape RSS nhiều nguồn** — fetch song song qua `Promise.allSettled`, 11 nguồn (6 enabled) chia 4 tier, timeout 10 giây; lỗi 1 feed không ảnh hưởng các feed khác. |
-| **AI relevance filter (Haiku)** — batch up to 10 articles per call, decimal scores 0–10 (e.g. 7.2, 8.5), categories (L2, DeFi, Protocol, AI, Market...), reasoning + suggested angle; drops below 6 → auto-dismissed. | **Lọc AI (Haiku)** — batch tới 10 bài/call, điểm decimal 0–10 (vd 7.2, 8.5), phân loại + reasoning + suggested angle; dưới 6 → auto-dismissed. |
-| **Tiered inbox** — HOT (8+) shown by default with suggested angles, OTHER (6–7.9) via `--other`, dismissed hidden; `--all` to show everything. Recency filter: 30 days default, `--days=N` to override. | **Tiered inbox** — HOT (8+) hiện mặc định với suggested angle, OTHER (6–7.9) qua `--other`, dismissed ẩn; `--all` hiện tất cả. Recency filter: 30 ngày mặc định, `--days=N` để override. |
+| **Multi-source RSS scraping** — parallel fetch via `Promise.allSettled`, 16 configurable sources (9 enabled) across 4 tiers, 10s timeout per feed; one feed failure doesn't crash the rest. | **Scrape RSS nhiều nguồn** — fetch song song qua `Promise.allSettled`, 16 nguồn (9 enabled) chia 4 tier, timeout 10 giây; lỗi 1 feed không ảnh hưởng các feed khác. |
+| **AI relevance filter (Haiku)** — batch up to 10 articles per call, decimal scores 0–10 (e.g. 7.2, 8.5), 12 fixed categories (L2, DeFi, AI x Crypto, Developer Tooling, SocialFi, Bitcoin, Regulation, Macro, Research/Protocol, Price/Trading, Exchange/Corporate, Other), reasoning + suggested angle; drops below 6 → auto-dismissed. | **Lọc AI (Haiku)** — batch tới 10 bài/call, điểm decimal 0–10, 12 category cố định, reasoning + suggested angle; dưới 6 → auto-dismissed. |
+| **Tiered inbox** — HOT (7.5+) shown by default with suggested angles, OTHER (6–7.4) via `--other`, dismissed hidden; `--all` to show everything. Recency filter: 30 days default, `--days=N` to override. | **Tiered inbox** — HOT (7.5+) hiện mặc định với suggested angle, OTHER (6–7.4) qua `--other`, dismissed ẩn; `--all` hiện tất cả. Recency filter: 30 ngày mặc định, `--days=N` để override. |
 | **Research brief (Sonnet)** — `npm run brief <id>` generates: WHY IT MATTERS (2–3 sentences), related stories (last 7 days, score ≥ 6), suggested angles (VN primary + EN). Personalized via user context files. Cached in DB — second run skips API. | **Research brief (Sonnet)** — `npm run brief <id>` tạo: WHY IT MATTERS (2–3 câu), bài liên quan (7 ngày, score ≥ 6), suggested angles (VN chính + EN). Cá nhân hóa qua user context files. Cache trong DB — lần 2 không gọi API. |
 | **URL dedup** — `INSERT OR IGNORE` on UNIQUE url constraint; second fetch of same articles silently skipped. | **Dedup theo URL** — `INSERT OR IGNORE` trên constraint UNIQUE; fetch lại không tạo bản trùng. |
 | **OG image extraction** — fetches article HTML, regex-extracts `og:image` meta tag; max 5 concurrent requests; never throws. | **Lấy ảnh OG** — fetch HTML bài viết, regex lấy `og:image`; tối đa 5 request song song; không throw. |
@@ -57,6 +57,9 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 | **Cost tracking** — Haiku + Sonnet token usage (input/output) and USD estimate per operation. | **Theo dõi chi phí** — đếm token Haiku + Sonnet (in/out) và ước tính USD mỗi lần chạy. |
 | **Source status** — `npm run sources:status` prints per-source table: enabled/disabled, article count, last article date, last fetch timestamp; no API key required. | **Trạng thái nguồn** — `npm run sources:status` in bảng per-source: enabled/disabled, số bài, ngày bài gần nhất, lần fetch cuối; không cần API key. |
 | **Verbose fetch** — `npm run fetch -- --verbose` logs per-feed item count + new/dup breakdown after each source; default output unchanged. | **Fetch verbose** — `npm run fetch -- --verbose` log per-feed số item + new/dup sau mỗi nguồn; output mặc định không đổi. |
+| **Scoring diagnostic** — `npm run stats:scoring [--days=N]` prints total scored / HOT / OTHER / dismissed with percentages, avg score, 8-bucket histogram (split at 7.5) with bar chart, and Haiku-assigned category breakdown. Read-only, no API key needed. | **Diagnostic scoring** — `npm run stats:scoring [--days=N]` in tổng số, tỉ lệ HOT/OTHER/dismissed, histogram 8 bucket (chia tại 7.5), breakdown theo Haiku category. Chỉ đọc, không cần API key. |
+| **Per-source diagnostic** — `npm run stats:sources [--days=N]` prints per-source table: total scored, avg score, HOT / OTHER / dismissed counts, HOT% rate. Ordered by HOT count then avg score. | **Diagnostic per nguồn** — `npm run stats:sources [--days=N]` in bảng per-source: số bài scored, avg score, HOT/OTHER/dismissed, HOT%. Sắp xếp theo HOT rồi avg score. |
+| **Near-HOT inspector** — `npm run inspect:near-hot [--limit=N] [--days=N]` lists articles scoring 7.0–7.4 with full untruncated Haiku reasoning and suggested angle; use to diagnose whether the 7.5 HOT threshold needs adjustment. | **Inspect near-HOT** — `npm run inspect:near-hot` liệt kê bài score 7–7.4 với full Haiku reasoning và suggested angle; dùng để kiểm tra threshold 7.5 có phù hợp không. |
 
 **EN — Not yet built (planned slices):** X API adapter (Slice 5), TUI / Ink (Slice 6+).
 **VI — Chưa xây (slice sắp tới):** X API adapter (Slice 5), TUI / Ink (Slice 6+).
@@ -70,7 +73,7 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 ```mermaid
 flowchart TB
   subgraph External["External / Bên ngoài"]
-    RSS["RSS Feeds\n(6 enabled sources)"]
+    RSS["RSS Feeds\n(9 enabled sources)"]
     WEB["Source websites\n(OG image)"]
     AN_H["Anthropic API\nClaude Haiku"]
     AN_S["Anthropic API\nClaude Sonnet"]
@@ -84,6 +87,9 @@ flowchart TB
     LIST["scripts/list.ts\nnpm run list"]
     BRIEF["scripts/brief.ts\nnpm run brief <id>"]
     STATUS["scripts/sources-status.ts\nnpm run sources:status"]
+    STATS_S["scripts/stats-scoring.ts\nnpm run stats:scoring"]
+    STATS_SRC["scripts/stats-sources.ts\nnpm run stats:sources"]
+    INSPECT["scripts/inspect-near-hot.ts\nnpm run inspect:near-hot"]
   end
 
   subgraph FeedFetcher["feed-fetcher/"]
@@ -140,6 +146,11 @@ flowchart TB
   BO --> FMT
   CFG --> DB
   STATUS --> SRC
+  STATS_S --> FR
+  STATS_SRC --> FR
+  STATS_SRC --> SRC
+  INSPECT --> FR
+  INSPECT --> SRC
   RSSCFG --> SRC
 ```
 
@@ -152,9 +163,15 @@ flowchart TB
   CLI --> LIST["npm run list\n--hot · --other · --all\n--today · --days=N"]
   CLI --> BRIEF["npm run brief <id> [--refresh]\nSonnet → cache → angle .md"]
   CLI --> STATUS["npm run sources:status\nsource health + article counts"]
+  CLI --> STATS_S["npm run stats:scoring [--days=N]\nscoring histogram + category breakdown"]
+  CLI --> STATS_SRC["npm run stats:sources [--days=N]\nper-source HOT rate table"]
+  CLI --> INSPECT["npm run inspect:near-hot [--limit=N]\nfull reasoning for score 7–7.9 articles"]
   CLI --> TEST["npm test\nvitest run (39 tests)"]
 
   FETCH --> DB[("SQLite\n~/.inkpilot/inkpilot.db")]
+  STATS_S --> DB
+  STATS_SRC --> DB
+  INSPECT --> DB
   FETCH --> AN_H["Anthropic API\nClaude Haiku"]
   LIST --> DB
   BRIEF --> DB
@@ -187,9 +204,12 @@ flowchart TB
 | `src/scripts/list.ts` | CLI entry: tiered inbox (HOT/OTHER), `--hot`, `--other`, `--all`, `--today`, `--days=N`, `--source`, `--state` | CLI list: tiered inbox, filter đa dạng, recency filter |
 | `src/scripts/brief.ts` | CLI: `npm run brief <id> [--refresh]` → load → cache? → Sonnet? → cache DB → export angle `.md` → print | CLI brief + refresh + export vault |
 | `src/scripts/sources-status.ts` | CLI: `npm run sources:status` — init DB → seed → `getSourcesStatus()` → print aligned table (name, enabled, article count, last article date, last fetch) | CLI trạng thái nguồn — bảng per-source, không cần API key |
-| `src/config/index.ts` | Loads `.env` → exports typed `Config`; exports `AI_MODELS` (Haiku + Sonnet API model IDs) | Load `.env` + `AI_MODELS` |
+| `src/scripts/stats-scoring.ts` | CLI: `npm run stats:scoring [--days=N]` — 8-bucket histogram (split at `SCORE_THRESHOLDS.HOT = 7.5`; buckets: `7–7.5` near-HOT, `7.5–8` ← HOT) + HOT/OTHER/dismissed totals + avg score; second query for Haiku-assigned category breakdown; read-only, no API key | CLI diagnostic scoring: histogram 8 bucket, tỉ lệ, category breakdown |
+| `src/scripts/stats-sources.ts` | CLI: `npm run stats:sources [--days=N]` — JOIN `filter_results → articles → sources`, GROUP BY `source_id`, ordered by HOT count then avg score; `✓` marks sources with ≥1 HOT article; totals row at footer | CLI diagnostic per-source: HOT rate, avg score, counts |
+| `src/scripts/inspect-near-hot.ts` | CLI: `npm run inspect:near-hot [--limit=N] [--days=N]` — queries `score >= 7.0 AND score < 7.5` (below HOT threshold), JOIN sources; prints full `reasoning` + `suggested_angle` untruncated per article | CLI inspector: near-HOT articles + full Haiku reasoning |
+| `src/config/index.ts` | Loads `.env` → exports typed `Config`; exports `AI_MODELS` (Haiku + Sonnet API model IDs) and `SCORE_THRESHOLDS` (`HOT = 7.5`, `OTHER_MIN = 6.0`) | Load `.env` + `AI_MODELS` + `SCORE_THRESHOLDS` |
 | `src/config/types.ts` | `Config` interface | Interface `Config` |
-| `src/config/rss-sources.ts` | Source of truth for all RSS feeds: 11 sources × 4 tiers, typed `RssSourceConfig[]` | Danh sách RSS: 11 nguồn × 4 tier |
+| `src/config/rss-sources.ts` | Source of truth for all RSS feeds: 16 sources × 4 tiers, typed `RssSourceConfig[]`; optional `articleDomain?: string` for sources where feed host ≠ article URL host (e.g. Vitalik: feed at `vitalik.eth.limo`, articles at `vitalik.ca`) | Danh sách RSS: 16 nguồn × 4 tier; `articleDomain` override khi feed host ≠ article host |
 | `src/content-filter/index.ts` | `filterNewArticles` orchestrator: load articles → batch → score → insert results → update states | Orchestrator scoring: load → batch → score → insert → update state |
 | `src/content-filter/haiku-filter.ts` | `scoreArticles`: Anthropic SDK call, JSON parse, fallback on error, cost calculation | Gọi Anthropic SDK, parse JSON, fallback khi lỗi, tính chi phí |
 | `src/content-filter/types.ts` | `ArticleToScore`, `FilterResult`, `BatchFilterResult` | Types cho content filter |
@@ -201,7 +221,7 @@ flowchart TB
 | `src/database/schema.ts` | `CREATE TABLE` for all 7 tables + indexes | Schema 7 bảng + index |
 | `src/database/index.ts` | Singleton DB connection (`initDb`/`getDb`/`closeDb`/`resetDb`); WAL mode, foreign keys | Kết nối DB singleton; WAL mode |
 | `src/database/migrations.ts` | Runs schema; auto-migrates old `sources` and `filter_results` tables | Chạy schema; tự migrate bảng cũ |
-| `src/database/sources.ts` | `seedSources` (upsert), `getEnabledSources`, `getSourceBySlug`, `updateLastFetchedAt`, `getSourcesStatus` (JOIN articles for per-source counts) | CRUD bảng sources (upsert) + status query |
+| `src/database/sources.ts` | `seedSources` (upsert), `getEnabledSources`, `getSourceBySlug`, `updateLastFetchedAt`, `getSourcesStatus`, `repairArticleSourceIds` (re-maps `articles.source_id` by URL domain after migrations that reset auto-increment IDs) | CRUD bảng sources (upsert) + status query + repair |
 | `src/database/articles.ts` | `insertArticle` (dedup), `getArticlesWithFilter` (flexible JOIN query), `updateOgImage` | CRUD bảng articles |
 | `src/database/article-states.ts` | `createArticleState`, `updateArticleState`, `getArticleState` | CRUD bảng article_states |
 | `src/database/filter-results.ts` | `insertFilterResult`, `isArticleScored`, `getUnscoredArticleIds`, `cacheArticleBrief`, `getCachedBrief` | CRUD bảng filter_results + cache brief |
@@ -273,8 +293,8 @@ sequenceDiagram
 flowchart LR
   CLI["npm run list\n--hot · --other · --all\n--today · --days=N\n--source · --state"]
   CLI --> DB[("SQLite\narticles JOIN sources\nJOIN article_states\nJOIN filter_results")]
-  DB --> HOT["HOT 🔥 (score 8+)\nwith suggested angles"]
-  DB --> OTHER["OTHER (score 6–7.9)"]
+  DB --> HOT["HOT 🔥 (score 7.5+)\nwith suggested angles"]
+  DB --> OTHER["OTHER (score 6–7.4)"]
   DB --> ALL["ALL (--all flag)"]
 ```
 
@@ -315,7 +335,7 @@ sequenceDiagram
 ## 7. Database Schema | Schema cơ sở dữ liệu
 
 ```
-sources          — 11 RSS feeds, upserted from config (slug UNIQUE, name, url, category, tier, language, enabled)
+sources          — 16 RSS feeds, upserted from config (slug UNIQUE, name, url, category, tier, language, enabled)
 articles         — fetched articles (url UNIQUE, title, content, author, published_at, og_image_url)
 article_states   — state machine per article (new → read → starred → drafted → posted → dismissed)
 filter_results   — Haiku scoring + Sonnet brief cache (article_id UNIQUE, score, category, reasoning, suggested_angle, ai_context for cached brief, tokens, model)
@@ -330,12 +350,16 @@ post_metrics     — engagement metrics (planned — Slice 5+)
 
 | Tier | Nguồn | Category | Language | Interval | Status |
 |------|-------|----------|----------|----------|--------|
-| 1 | Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
+| 1 | Decrypt, Bankless, CoinDesk, Blockworks | crypto / defi | en | 1h | enabled |
+| 1 | ETH Research Forum, Bitcoin Optech | research-technical | en | 1h | enabled |
 | 1 | The Block | crypto | en | 1h | **disabled** — Cloudflare blocks all non-browser requests (HTTP 403) |
-| 2 | Ethereum Foundation, Vitalik's Blog | protocol | en | 1h | enabled |
-| 2 | Base Blog | protocol | en | 1h | **disabled** — `base.mirror.xyz` dead; `blog.base.org` behind Cloudflare JS challenge |
-| 3 | Coin68, CoinCu News, Tạp Chí Bitcoin | vietnamese | vi | 2h | CoinCu enabled; Coin68 + TCB disabled |
-| 4 | MarkTechPost | ai | en | 2h | disabled |
+| 2 | Ethereum Foundation Blog, Arbitrum Foundation | protocol / protocol-l2 | en | 1h | enabled |
+| 2 | Base Blog | protocol | en | 1h | **disabled** — `base.mirror.xyz` dead; `blog.base.org` Cloudflare JS challenge |
+| 2 | Optimism Blog | protocol-l2 | en | 1h | **disabled** — `optimism.mirror.xyz` + all Paragraph alternatives stale since Jun 2025 |
+| 2 | Vitalik's Blog | protocol | en | 1h | **disabled** — retained for FK integrity (171 articles in DB) |
+| 3 | CoinCu News | vietnamese | vi | 2h | enabled |
+| 3 | Coin68, Tạp Chí Bitcoin | vietnamese | vi | 2h | **disabled** — retained for FK integrity |
+| 4 | MarkTechPost | ai | en | 2h | **disabled** — retained for FK integrity (10 articles in DB) |
 
 ---
 
@@ -386,7 +410,7 @@ post_metrics     — engagement metrics (planned — Slice 5+)
 
 | EN | VI |
 |----|----|
-| **5 feeds disabled** — The Block (Cloudflare 403, all UA variants blocked), Base Blog (`base.mirror.xyz` dead, `blog.base.org` Cloudflare-protected), Coin68 (malformed XML), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). | **5 feed disabled** — The Block (Cloudflare 403), Base Blog (URL chết + Cloudflare), Coin68 (XML lỗi), Tạp Chí Bitcoin (timeout), MarkTechPost (timeout). |
+| **7 feeds disabled** — The Block (Cloudflare 403, all UA variants blocked), Base Blog (`base.mirror.xyz` dead, `blog.base.org` Cloudflare JS challenge), Optimism Blog (all Mirror + Paragraph endpoints stale since Jun 2025); Vitalik's Blog, Coin68, Tạp Chí Bitcoin, MarkTechPost retained as disabled for FK integrity (articles in DB). | **7 feed disabled** — The Block (Cloudflare 403), Base Blog (URL chết + Cloudflare), Optimism Blog (stale Jun 2025); Vitalik, Coin68, TCB, MarkTechPost giữ lại để bảo toàn FK. |
 | **No scheduler** — `npm run fetch` runs manually or via external cron. | **Không có scheduler** — `npm run fetch` chạy tay hoặc cron ngoài. |
 | **No X API yet** — posts table exists but no publishing adapter (Slice 5). | **Chưa có X API** — bảng posts đã có nhưng chưa có adapter đăng bài (Slice 5). |
 | **`recasts` column name** — `post_metrics` table still uses `recasts`; will rename to `reposts` in X adapter slice. | **Tên cột `recasts`** — bảng `post_metrics` vẫn dùng `recasts`; sẽ đổi thành `reposts` khi làm X adapter. |

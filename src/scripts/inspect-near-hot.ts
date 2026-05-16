@@ -1,4 +1,5 @@
 import { initDb, getDb } from '../database/index.js';
+import { SCORE_THRESHOLDS } from '../config/index.js';
 
 function parseArgs(): { limit: number; days: number } {
   const args = process.argv.slice(2);
@@ -51,20 +52,20 @@ function main(): void {
     FROM filter_results fr
     JOIN articles a ON fr.article_id = a.id
     LEFT JOIN sources s ON a.source_id = s.id
-    WHERE fr.score >= 7.0 AND fr.score < 8.0
+    WHERE fr.score >= 7.0 AND fr.score < ${SCORE_THRESHOLDS.HOT}
       AND fr.scored_at >= datetime('now', ?)
     ORDER BY fr.score DESC, fr.scored_at DESC
     LIMIT ?
   `).all(since, limit) as NearHotRow[];
 
   if (rows.length === 0) {
-    console.log(`\nNo near-HOT articles (score 7–7.9) in the last ${days} days.\n`);
+    console.log(`\nNo near-HOT articles (score 7.0–${SCORE_THRESHOLDS.HOT - 0.1}) in the last ${days} days.\n`);
     return;
   }
 
   const divider = '─'.repeat(80);
 
-  console.log(`\nNear-HOT articles (score 7.0–7.9) — last ${days} days, showing ${rows.length}\n`);
+  console.log(`\nNear-HOT articles (score 7.0–${SCORE_THRESHOLDS.HOT - 0.1}) — last ${days} days, showing ${rows.length}\n`);
 
   for (const row of rows) {
     console.log(divider);
@@ -83,7 +84,7 @@ function main(): void {
   }
 
   console.log(divider);
-  console.log(`\n${rows.length} near-HOT article${rows.length === 1 ? '' : 's'} shown. Use --limit=N or --days=N to adjust.\n`);
+  console.log(`\n${rows.length} near-HOT article${rows.length === 1 ? '' : 's'} (score 7.0–${SCORE_THRESHOLDS.HOT - 0.1}) shown. Use --limit=N or --days=N to adjust.\n`);
 }
 
 main();

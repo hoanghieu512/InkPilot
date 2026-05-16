@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.4.1] - 2026-05-16
+### Fixed
+- **Recency filter used `fetched_at` as fallback** (FIX 1): `queryScoredArticles` filtered by `COALESCE(a.published_at, a.fetched_at) >= datetime('now', '-N days')` — articles with no `published_at` fell back to `fetched_at` (the DB insert time); articles re-inserted during the v0.3.0 source repair had a recent `fetched_at` despite being published in 2025, so old Optimism (Jun 2025) and Blockworks (Dec 2025) articles surfaced in the HOT list; fix: condition changed to `a.published_at >= datetime('now', '-N days')` — articles without a publication date are excluded from the default view (not a regression — no published_at means no date to filter on)
+- **Haiku assigned free-form categories** (FIX 2): Haiku prompt had no category constraint; 429 scored articles → 200+ unique strings (`"DeFi"`, `"DeFi/Stablecoins"`, `"defi"`, `"DEFI Protocol"`, etc.), making `npm run stats:scoring` category breakdown useless; fix: system prompt appends a fixed enum (`L2 | DeFi | AI x Crypto | Developer Tooling | SocialFi | Bitcoin | Regulation | Macro | Research/Protocol | Price/Trading | Exchange/Corporate | Other`) and user prompt adds `IMPORTANT: "category" must be exactly one of: ...`; existing articles keep their free-form categories (no re-score); new articles from next `npm run fetch` will use the enum
+
+### Changed
+- **HOT threshold lowered 8.0 → 7.5** (CHG 1): `SCORE_THRESHOLDS.HOT` in `src/config/index.ts` changed from `8.0` to `7.5`; `npm run inspect:near-hot` had identified 57 articles in the 7.0–7.9 band that were substantive enough to surface; constant is centralized — all queries and display strings import from one place; scores in DB are unchanged, threshold only affects queries and display; histogram in `stats:scoring` now uses 8 buckets: replaces the single `7–8` bucket with `7–7.5` (near-HOT) and `7.5–8` (← HOT); files updated: `list.ts`, `content-filter/index.ts`, `haiku-filter.ts`, `stats-scoring.ts`, `stats-sources.ts`, `inspect-near-hot.ts`
+
+## [0.4.0] - 2026-05-16
+### Added
+- **`npm run stats:scoring`** (ADD 1): `src/scripts/stats-scoring.ts` — read-only diagnostic for Haiku scoring distribution over the last N days (default 7, `--days=N` to override); prints total scored / HOT / OTHER / dismissed counts with percentages, avg score, score histogram with bar chart across 7 buckets (0–3, 3–5, 5–6, 6–7, 7–8 ← near-HOT, 8–9 ← HOT, 9–10 ← HOT), and Haiku-assigned category breakdown sorted by count; no API key required
+- **`npm run stats:sources`** (ADD 2): `src/scripts/stats-sources.ts` — read-only per-source scoring breakdown over N days; prints aligned table with: source name, total scored articles, avg score, HOT count, OTHER count, dismissed count, HOT% (articles that scored ≥ 8 as share of total); rows ordered by HOT count then avg score descending; footer row shows cross-source totals; `✓` flag marks sources that produced at least one HOT article
+- **`npm run inspect:near-hot`** (ADD 3): `src/scripts/inspect-near-hot.ts` — read-only; queries articles with `score >= 7.0 AND score < 8.0` in the last N days (default 30), shows up to `--limit=N` (default 10) results; per article prints full score, source name, published date, full title, full Haiku reasoning (untruncated), and suggested angle if present; useful for diagnosing whether HOT threshold is too strict
+
+## [0.3.1] - 2026-05-16
+### Fixed
+- **CRITICAL: `articles.source_id` orphaned after v0.3.0 migration** (FIX 1): dropping + recreating `sources` with `DROP TABLE IF EXISTS` resets SQLite auto-increment, so all pre-existing articles pointed to wrong sources (e.g. 626 Ethereum Foundation articles showed under Blockworks; 132 CoinCu articles showed under Base Blog); root cause confirmed by joining `articles.url` domains to `sources.slug`; fix: `repairArticleSourceIds(sources, db?)` added to `src/database/sources.ts` — for each source, extracts article URL domain (using `config.articleDomain` override if set, otherwise hostname from feed URL), runs `UPDATE articles SET source_id = ? WHERE url LIKE '%domain%' AND source_id != ?`; called from `scripts/fetch.ts` after `seedSources`; idempotent — second run finds 0 changes; repaired 939 articles (626 EF + 171 Vitalik + 132 CoinCu + 10 MarkTechPost)
+- **Optimism Blog disabled — feed stale since 2025-06-12** (FIX 2): `optimism.mirror.xyz/feed` last updated Jun 2025 (~11 months); probed `paragraph.xyz/@the-optimism-collective/feed` (same stale content, latest Jun 2025), `@optimism.eth` (404), `@op-foundation` (404), `@op` (Oct 2023), `@gov.optimism.eth` (404) — no active Optimism RSS endpoint found; source set to `enabled: false` with comment documenting last-updated date and probe results
+
+### Added
+- **`articleDomain` field on `RssSourceConfig`** (ADD 1): optional `articleDomain?: string` on the TS interface; used by `repairArticleSourceIds` when the feed URL hostname differs from the actual article URL domain (Vitalik: feed at `vitalik.eth.limo`, articles at `vitalik.ca`); not stored in DB — `seedSources` ignores it; default behavior (no `articleDomain`) extracts hostname from feed URL
+- **4 removed sources re-added as disabled for FK integrity** (ADD 2): Vitalik's Blog, Coin68, Tạp Chí Bitcoin, MarkTechPost re-added to `rss-sources.ts` as `enabled: false` with comment "retained for FK integrity"; `seedSources` upserts them back into `sources` table so existing `articles.source_id` references remain valid; articles from these sources are queryable via `npm run list -- --all` and correctly attributed in `npm run sources:status`
+
+## [0.3.0] - 2026-05-16
+### Removed
+- **Vitalik's Blog** — last post 2026-04-02, publishes too infrequently for daily workflow; articles remain in DB
+- **MarkTechPost, Coin68, Tạp Chí Bitcoin** — long-disabled due to feed errors / timeouts with no plan to fix; articles remain in DB
+
+### Added
+- **Blockworks** (Tier 1 EN, `crypto`) — `https://blockworks.co/feed/`; verified 50 items in feed; `enabled: true`
+- **ETH Research Forum** (Tier 1 EN, `research-technical`) — `https://ethresear.ch/posts.rss`; verified 50 items; high volume forum threads, technical depth; `enabled: true`
+- **Bitcoin Optech** (Tier 1 EN, `research-technical`) — `https://bitcoinops.org/feed.xml`; ~weekly cadence, 10 items; `enabled: true`
+- **Arbitrum Foundation** (Tier 2 EN, `protocol-l2`) — `https://arbitrumfoundation.medium.com/feed`; verified 10 items; `enabled: true`
+- **Optimism Blog** (Tier 2 EN, `protocol-l2`) — `https://optimism.mirror.xyz/feed`; 20 items; `enabled: true` (later disabled in v0.3.1 after confirming feed stale)
+- **Two new categories**: `protocol-l2` and `research-technical` added to `RssSourceConfig` union type, `SourceCategory` type in `database/types.ts`, and `sources` table CHECK constraint in `schema.ts`
+- **Migration for category constraint**: `migrateSourcesCategoryConstraint()` in `migrations.ts` — detects if `sources` table SQL predates `protocol-l2`, disables FK enforcement (`PRAGMA foreign_keys = OFF`), drops and recreates table, re-enables FK; sources are re-seeded from config on next `npm run fetch`
+
 ## [0.2.0] - 2026-05-15
 ### Fixed
 - **The Block feed — HTTP 403 (Cloudflare block)** (FIX 1): probed all UA variants (`InkPilot/0.1 RSS Reader`, `Mozilla/5.0 compatible`, Feedly UA, full browser Chrome string) and alternate endpoints (`/feeds/rss.xml`, `/atom.xml`, `/rss`) — all return 403; Cloudflare JS challenge cannot be bypassed by a non-browser RSS client; `theblock` source set to `enabled: false` in `rss-sources.ts` with inline comment; `seedSources()` ON CONFLICT upsert propagates the disabled flag to DB on next `npm run fetch` (no manual DB intervention needed); re-enable when The Block provides an unauthenticated feed endpoint

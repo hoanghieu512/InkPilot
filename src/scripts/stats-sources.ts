@@ -1,4 +1,5 @@
 import { initDb, getDb } from '../database/index.js';
+import { SCORE_THRESHOLDS } from '../config/index.js';
 
 function parseDays(): number {
   const arg = process.argv.find((a) => a.startsWith('--days='));
@@ -34,9 +35,9 @@ function main(): void {
       COALESCE(s.name, 'unknown') as source_name,
       COUNT(*) as total,
       AVG(fr.score) as avg_score,
-      SUM(CASE WHEN fr.score >= 8              THEN 1 ELSE 0 END) as hot,
-      SUM(CASE WHEN fr.score >= 6 AND fr.score < 8 THEN 1 ELSE 0 END) as other,
-      SUM(CASE WHEN fr.score < 6               THEN 1 ELSE 0 END) as dismissed
+      SUM(CASE WHEN fr.score >= ${SCORE_THRESHOLDS.HOT}              THEN 1 ELSE 0 END) as hot,
+      SUM(CASE WHEN fr.score >= ${SCORE_THRESHOLDS.OTHER_MIN} AND fr.score < ${SCORE_THRESHOLDS.HOT} THEN 1 ELSE 0 END) as other,
+      SUM(CASE WHEN fr.score < ${SCORE_THRESHOLDS.OTHER_MIN}               THEN 1 ELSE 0 END) as dismissed
     FROM filter_results fr
     JOIN articles a ON fr.article_id = a.id
     LEFT JOIN sources s ON a.source_id = s.id

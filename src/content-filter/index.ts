@@ -4,6 +4,7 @@ import { getDb } from '../database/index.js';
 import { getUnscoredArticleIds, insertFilterResult } from '../database/filter-results.js';
 import { updateArticleState } from '../database/article-states.js';
 import { scoreArticles } from './haiku-filter.js';
+import { SCORE_THRESHOLDS } from '../config/index.js';
 import type { ArticleToScore, BatchFilterResult } from './types.js';
 import type { Source } from '../database/types.js';
 import type Database from 'better-sqlite3';
@@ -77,10 +78,10 @@ export async function filterNewArticles(
     for (const result of batchResult.results) {
       insertFilterResult(result, db);
 
-      if (result.score < 6) {
+      if (result.score < SCORE_THRESHOLDS.OTHER_MIN) {
         updateArticleState(result.articleId, 'dismissed', db);
         aggregated.dismissedCount++;
-      } else if (result.score >= 8) {
+      } else if (result.score >= SCORE_THRESHOLDS.HOT) {
         aggregated.hotCount++;
       } else {
         aggregated.otherCount++;

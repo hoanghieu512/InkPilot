@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODELS } from '../config/index.js';
+import { AI_MODELS, SCORE_THRESHOLDS } from '../config/index.js';
 import { createLogger } from '../utils/logger.js';
 import type { ArticleToScore, FilterResult, BatchFilterResult } from './types.js';
 
@@ -37,7 +37,10 @@ Scoring rubric:
 
 Return scores as decimals with one decimal place (e.g., 7.2, 8.5, 9.1), not integers. Use the full range within each tier — avoid rounding to whole numbers.
 
-For Vietnamese articles: score based on significance to broader crypto ecosystem, not just local VN market.`;
+For Vietnamese articles: score based on significance to broader crypto ecosystem, not just local VN market.
+
+For "category", you MUST return exactly one value from this fixed list — no other values allowed:
+L2 | DeFi | AI x Crypto | Developer Tooling | SocialFi | Bitcoin | Regulation | Macro | Research/Protocol | Price/Trading | Exchange/Corporate | Other`;
 
 interface HaikuResponseItem {
   id: number;
@@ -88,7 +91,9 @@ Expected response format:
     "reasoning": "Brief explanation of the score.",
     "suggestedAngle": "One sentence starting point for personal take."
   }
-]`;
+]
+
+IMPORTANT: "category" must be exactly one of: L2, DeFi, AI x Crypto, Developer Tooling, SocialFi, Bitcoin, Regulation, Macro, Research/Protocol, Price/Trading, Exchange/Corporate, Other`;
 
   try {
     const response = await client.messages.create({
@@ -147,8 +152,8 @@ Expected response format:
     let otherCount = 0;
     let dismissedCount = 0;
     for (const r of results) {
-      if (r.score >= 8) hotCount++;
-      else if (r.score >= 6) otherCount++;
+      if (r.score >= SCORE_THRESHOLDS.HOT) hotCount++;
+      else if (r.score >= SCORE_THRESHOLDS.OTHER_MIN) otherCount++;
       else dismissedCount++;
     }
 

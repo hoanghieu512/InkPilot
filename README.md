@@ -6,7 +6,7 @@ Công cụ CLI **local-first** phục vụ nghiên cứu nội dung crypto — s
 
 ## Overview
 
-**TypeScript + Node.js**, scrape RSS song song từ 11 nguồn (6 enabled), dedup theo URL, score bằng **Claude Haiku** (batch 10 bài/call), generate **research brief** bằng **Claude Sonnet** (per article), lưu vào SQLite (`better-sqlite3`). Mỗi bài viết được theo dõi qua state machine (`new` → `read` → `starred` → `drafted` → `posted` → `dismissed`). Bài score < 6 tự động `dismissed`.
+**TypeScript + Node.js**, scrape RSS song song từ 16 nguồn (9 enabled), dedup theo URL, score bằng **Claude Haiku** (batch 10 bài/call), generate **research brief** bằng **Claude Sonnet** (per article), lưu vào SQLite (`better-sqlite3`). Mỗi bài viết được theo dõi qua state machine (`new` → `read` → `starred` → `drafted` → `posted` → `dismissed`). Bài score < 6 tự động `dismissed`.
 
 Cấu hình credentials qua `.env`; nguồn RSS chỉnh trong `src/config/rss-sources.ts`.
 
@@ -17,8 +17,8 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 ## Features
 
 - **RSS scraper** — scrape 6 nguồn song song (`Promise.allSettled`), dedup theo URL (`INSERT OR IGNORE`), timeout 10 giây/feed.
-- **AI scoring (Haiku)** — batch scoring 10 bài/call, điểm 0–10 (decimal, e.g. 7.2, 8.5) + category + reasoning + suggested angle; cost tracking (token + USD).
-- **Tiered inbox** — HOT (score 8+) hiện mặc định với suggested angle, OTHER (6–7.9), Dismissed (< 6) tự ẩn. Recency filter 30 ngày mặc định, `--days=N` để override.
+- **AI scoring (Haiku)** — batch scoring 10 bài/call, điểm 0–10 (decimal, e.g. 7.2, 8.5) + 12 category cố định (L2, DeFi, AI x Crypto, Developer Tooling, SocialFi, Bitcoin, Regulation, Macro, Research/Protocol, Price/Trading, Exchange/Corporate, Other) + reasoning + suggested angle; cost tracking (token + USD).
+- **Tiered inbox** — HOT (score 7.5+) hiện mặc định với suggested angle, OTHER (6–7.4), Dismissed (< 6) tự ẩn. Recency filter 30 ngày mặc định, `--days=N` để override.
 - **Research brief (Sonnet)** — `npm run brief <id>` generate brief cho bất kỳ article: WHY IT MATTERS + related stories + suggested angles (VN primary + EN). Hook-first angle prompts (không tóm tắt lại tin). Cache trong DB — lần 2 không gọi API; `npm run brief -- <id> --refresh` để gọi lại Sonnet và ghi đè cache.
 - **Angle markdown (Obsidian)** — mỗi lần brief xong tự ghi file `.md` vào `~/Dev/vault/projects/content-creator/angles/` từ template `~/Dev/vault/templates/angle-template.md` (placeholder `__KEY__` — tương thích obsidian/YAML, không dùng `{{}}`). Terminal hiện `💾 Saved: ~/...`. Thiếu template → chỉ cảnh báo, brief vẫn hiện.
 - **User context** — brief cá nhân hóa dựa trên `about-me.md` + `tone-guidelines.md` đọc từ `~/Dev/projects/Content-Creator/`; không có thì vẫn chạy.
@@ -28,6 +28,9 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 - **Graceful degradation** — lỗi 1 feed hoặc Haiku/Sonnet API failure không crash toàn bộ.
 - **Source status** — `npm run sources:status` in bảng per-source: enabled/disabled, số bài, ngày bài gần nhất, lần fetch cuối; không cần Anthropic API key.
 - **Verbose fetch** — `npm run fetch -- --verbose` log per-feed: số item feed trả về, new vs duplicate sau mỗi nguồn.
+- **Scoring diagnostic** — `npm run stats:scoring [--days=N]` in histogram 8 bucket (chia tại 7.5) + tỉ lệ HOT/OTHER/dismissed + breakdown theo Haiku category; không cần API key.
+- **Per-source diagnostic** — `npm run stats:sources [--days=N]` in bảng per-source: total scored, avg score, HOT/OTHER/dismissed counts, HOT%; không cần API key.
+- **Near-HOT inspector** — `npm run inspect:near-hot [--limit=N] [--days=N]` hiện 10 bài score 7–7.4 với full Haiku reasoning và suggested angle; dùng để diagnose threshold (hiện tại: 7.5).
 - **39 tests** — Vitest, in-memory SQLite; bao gồm dedup, seeding, states, mocked Anthropic (cả Haiku và Sonnet), fallback scoring, brief cache.
 
 ---
@@ -99,10 +102,10 @@ npm run fetch -- --verbose
 # Mặc định: hiện HOT trước, sau đó OTHER (last 30 days)
 npm run list
 
-# Chỉ HOT (score 8+) — có suggested angle
+# Chỉ HOT (score 7.5+) — có suggested angle
 npm run list -- --hot
 
-# Chỉ OTHER (score 6–7.9)
+# Chỉ OTHER (score 6–7.4)
 npm run list -- --other
 
 # Tất cả (bao gồm dismissed)
@@ -121,14 +124,14 @@ npm run list -- --state=new --today
 Output mặc định (tiered):
 
 ```
-HOT  🔥 (score 8+)
+HOT  🔥 (score 7.5+)
 ──────────────────────────────────────────────────────────────────────────────────────────
 [9.1]   42  Base introduces new fee mechanism for...   Base Blog        2h ago
             → Compare with Arbitrum's approach and developer adoption impact
 [8.5]   38  EigenLayer restaking hits $10B TVL amid..  The Block        5h ago
             → What restaking saturation means for ETH staking yields
 
-OTHER  (score 6–7.9)
+OTHER  (score 6–7.4)
 ──────────────────────────────────────────────────────────────────────────────────────────
 [7.2]   41  DeFi TVL reaches new high amid...          CoinDesk         3h ago
 [6.8]   39  Kraken acquires...                         CoinDesk         6h ago
@@ -199,6 +202,22 @@ Lần 2 chạy cùng article → dùng cache, không gọi API (file angle vẫn
 ══════════════════════════════════════════════════════════════
 ```
 
+### Scoring diagnostics
+
+```bash
+# Histogram phân bố score + HOT/OTHER/dismissed ratio (7 ngày mặc định)
+npm run stats:scoring
+npm run stats:scoring -- --days=30
+
+# Per-source: avg score, HOT count, HOT% (7 ngày mặc định)
+npm run stats:sources
+npm run stats:sources -- --days=14
+
+# 10 bài score 7–7.9 kèm full Haiku reasoning (để kiểm tra threshold)
+npm run inspect:near-hot
+npm run inspect:near-hot -- --limit=20 --days=14
+```
+
 ### Xem trạng thái nguồn
 
 ```bash
@@ -264,7 +283,10 @@ src/
 │   ├── fetch.ts           # CLI: npm run fetch [--verbose]
 │   ├── list.ts            # CLI: npm run list (tiered inbox, --days=N)
 │   ├── brief.ts           # CLI: npm run brief <id> [--refresh]
-│   └── sources-status.ts  # CLI: npm run sources:status (per-source health table)
+│   ├── sources-status.ts  # CLI: npm run sources:status (per-source health table)
+│   ├── stats-scoring.ts   # CLI: npm run stats:scoring [--days=N] (histogram + categories)
+│   ├── stats-sources.ts   # CLI: npm run stats:sources [--days=N] (per-source HOT rate)
+│   └── inspect-near-hot.ts # CLI: npm run inspect:near-hot (score 7–7.4 + full reasoning)
 └── utils/
     └── logger.ts          # Leveled, colored console logging
 templates/
@@ -282,12 +304,16 @@ tests/
 
 | Tier | Nguồn | Loại | Ngôn ngữ | Tần suất | Status |
 |------|-------|------|----------|----------|--------|
-| 1 | Decrypt, Bankless, CoinDesk | crypto / defi | en | 1h | enabled |
+| 1 | Decrypt, Bankless, CoinDesk, Blockworks | crypto / defi | en | 1h | enabled |
+| 1 | ETH Research Forum, Bitcoin Optech | research-technical | en | 1h | enabled |
 | 1 | The Block | crypto | en | 1h | disabled — Cloudflare 403 |
-| 2 | Ethereum Foundation, Vitalik's Blog | protocol | en | 1h | enabled |
-| 2 | Base Blog | protocol | en | 1h | disabled — URL chết + Cloudflare |
-| 3 | Coin68, CoinCu News, Tạp Chí Bitcoin | vietnamese | vi | 2h | CoinCu enabled; Coin68 + TCB disabled |
-| 4 | MarkTechPost | ai | en | 2h | disabled |
+| 2 | Ethereum Foundation Blog, Arbitrum Foundation | protocol / protocol-l2 | en | 1h | enabled |
+| 2 | Base Blog | protocol | en | 1h | disabled — Cloudflare JS challenge |
+| 2 | Optimism Blog | protocol-l2 | en | 1h | disabled — feed stale since Jun 2025 |
+| 2 | Vitalik's Blog | protocol | en | 1h | disabled — kept for FK integrity (articles in DB) |
+| 3 | CoinCu News | vietnamese | vi | 2h | enabled |
+| 3 | Coin68, Tạp Chí Bitcoin | vietnamese | vi | 2h | disabled — kept for FK integrity |
+| 4 | MarkTechPost | ai | en | 2h | disabled — kept for FK integrity |
 
 Thêm/xóa/sửa nguồn: sửa file `src/config/rss-sources.ts` → thay đổi tự sync vào DB lần fetch tiếp.
 
@@ -300,9 +326,9 @@ Haiku scoring sử dụng hệ thống prompt tập trung vào focus areas:
 | Score | Ý nghĩa | Hành động |
 |-------|---------|-----------|
 | 9.0–10.0 | Protocol update lớn, original research | HOT — hiện mặc định |
-| 7.0–8.9 | Đáng viết take, có angle rõ ràng | HOT — hiện mặc định |
-| 6.0–6.9 | Liên quan nhẹ, ít angle | OTHER — hiện khi `--other` |
-| < 6 | Spam, listicle, price prediction | Auto-dismissed |
+| 7.5–8.9 | Đáng viết take, có angle rõ ràng | HOT — hiện mặc định |
+| 6.0–7.4 | Liên quan, có thể có angle | OTHER — hiện khi `--other` |
+| < 6.0 | Spam, listicle, price prediction | Auto-dismissed |
 
 **Focus areas** (score cao hơn): L2/infrastructure, DeFi, SocialFi, AI×Crypto, developer tooling, Vietnamese crypto community.
 
@@ -335,6 +361,10 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **Slice 3** — Smart Filter (Claude Haiku scoring → tiered inbox, auto-dismiss, decimal scores, recency filter)
 - [x] **Slice 4** — Research Brief (Claude Sonnet brief → WHY IT MATTERS + related stories + suggested angles, cache, user context)
 - [x] **v0.2.0** — Feed fixes (disable The Block + Base Blog, Cloudflare-blocked), `npm run sources:status`, `--verbose` flag
+- [x] **v0.3.0** — Source expansion (add Blockworks, ETH Research, Bitcoin Optech, Arbitrum, Optimism; remove 4 stale sources; new categories `protocol-l2` + `research-technical`)
+- [x] **v0.3.1** — Data integrity fix (939 articles re-mapped after source_id orphan bug; disable stale Optimism feed; add `repairArticleSourceIds`)
+- [x] **v0.4.0** — HOT pipeline diagnostics (`stats:scoring`, `stats:sources`, `inspect:near-hot`)
+- [x] **v0.4.1** — HOT threshold 8.0 → 7.5, fixed 12-category Haiku enum, recency filter bug fix
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
 

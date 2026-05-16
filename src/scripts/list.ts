@@ -1,6 +1,7 @@
 import { initDb, getDb } from '../database/index.js';
 import { seedSources } from '../database/sources.js';
 import { RSS_SOURCES } from '../config/rss-sources.js';
+import { SCORE_THRESHOLDS } from '../config/index.js';
 import type { ArticleState } from '../database/types.js';
 import type Database from 'better-sqlite3';
 
@@ -69,7 +70,7 @@ function queryScoredArticles(
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  conditions.push(`COALESCE(a.published_at, a.fetched_at) >= datetime('now', '-${flags.days} days')`);
+  conditions.push(`a.published_at >= datetime('now', '-${flags.days} days')`);
 
   if (flags.today) {
     conditions.push("a.fetched_at >= datetime('now', '-24 hours')");
@@ -86,14 +87,14 @@ function queryScoredArticles(
   }
 
   if (flags.hot) {
-    conditions.push('fr.score >= 8');
+    conditions.push(`fr.score >= ${SCORE_THRESHOLDS.HOT}`);
     conditions.push("ast.state != 'dismissed'");
   } else if (flags.other) {
-    conditions.push('fr.score >= 6');
-    conditions.push('fr.score < 8');
+    conditions.push(`fr.score >= ${SCORE_THRESHOLDS.OTHER_MIN}`);
+    conditions.push(`fr.score < ${SCORE_THRESHOLDS.HOT}`);
     conditions.push("ast.state != 'dismissed'");
   } else if (!flags.all) {
-    conditions.push('fr.score >= 6');
+    conditions.push(`fr.score >= ${SCORE_THRESHOLDS.OTHER_MIN}`);
     conditions.push("ast.state != 'dismissed'");
   }
 
@@ -149,7 +150,7 @@ function renderTieredView(flags: CliFlags, db: Database.Database): void {
   const LINE_WIDTH = 90;
 
   if (hotArticles.length > 0) {
-    console.log(`\nHOT  \u{1F525} (score 8+)`);
+    console.log(`\nHOT  \u{1F525} (score ${SCORE_THRESHOLDS.HOT}+)`);
     console.log('─'.repeat(LINE_WIDTH));
     for (const row of hotArticles) {
       const scoreStr = row.score != null ? `[${row.score.toFixed(1)}]` : '[?.?]';
@@ -165,7 +166,7 @@ function renderTieredView(flags: CliFlags, db: Database.Database): void {
   }
 
   if (otherArticles.length > 0) {
-    console.log(`\nOTHER  (score 6–7.9)`);
+    console.log(`\nOTHER  (score ${SCORE_THRESHOLDS.OTHER_MIN}–${SCORE_THRESHOLDS.HOT - 0.1})`);
     console.log('─'.repeat(LINE_WIDTH));
     for (const row of otherArticles) {
       const scoreStr = row.score != null ? `[${row.score.toFixed(1)}]` : '[?.?]';
@@ -220,7 +221,7 @@ function renderFlatView(flags: CliFlags, db: Database.Database): void {
       console.log(
         `${padRight(scoreStr, 6)} ${padLeft(String(row.id), 4)}  ${padRight(row.title, 44)}  ${padRight(source, 16)}  ${padRight(time, 10)}  ${state}`
       );
-      if (row.suggested_angle && row.score != null && row.score >= 8) {
+      if (row.suggested_angle && row.score != null && row.score >= SCORE_THRESHOLDS.HOT) {
         console.log(`            → ${row.suggested_angle}`);
       }
     } else {

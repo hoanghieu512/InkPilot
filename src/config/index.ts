@@ -44,4 +44,9 @@ export const AI_MODELS = {
   sonnet: 'claude-sonnet-4-6',
 } as const;
 
+export const SCORE_THRESHOLDS = {
+  HOT: 7.5,       // score >= HOT → shown in HOT tier
+  OTHER_MIN: 6.0, // score >= OTHER_MIN → shown in OTHER tier; below → auto-dismissed
+} as const;
+
 export type { Config };
