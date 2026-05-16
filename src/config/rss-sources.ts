@@ -2,6 +2,8 @@ export interface RssSourceConfig {
   slug: string;
   name: string;
   url: string;
+  /** Override for article URL domain when it differs from the feed URL's hostname. Used by repairArticleSourceIds. */
+  articleDomain?: string;
   category: 'crypto' | 'protocol' | 'defi' | 'ai' | 'dev' | 'vietnamese' | 'protocol-l2' | 'research-technical';
   tier: 1 | 2 | 3 | 4;
   fetchIntervalHours: 1 | 2;
@@ -110,11 +112,12 @@ export const RSS_SOURCES: RssSourceConfig[] = [
   {
     slug: 'optimism',
     name: 'Optimism Blog',
+    // optimism.mirror.xyz last updated 2025-06-12 (~11 months stale); no active RSS found on Paragraph or other platforms
     url: 'https://optimism.mirror.xyz/feed',
     category: 'protocol-l2',
     tier: 2,
     fetchIntervalHours: 1,
-    enabled: true,
+    enabled: false,
     language: 'en',
   },
   {
@@ -138,5 +141,49 @@ export const RSS_SOURCES: RssSourceConfig[] = [
     fetchIntervalHours: 2,
     enabled: true,
     language: 'vi',
+  },
+
+  // Disabled — retained for FK integrity (articles exist in DB from earlier fetches)
+  {
+    slug: 'vitalik',
+    name: "Vitalik's Blog",
+    url: 'https://vitalik.eth.limo/feed.xml',
+    // article URLs are served from vitalik.ca (the feed host differs from article host)
+    articleDomain: 'vitalik.ca',
+    category: 'protocol',
+    tier: 2,
+    fetchIntervalHours: 1,
+    enabled: false,
+    language: 'en',
+  },
+  {
+    slug: 'coin68',
+    name: 'Coin68',
+    url: 'https://coin68.com/feed/',
+    category: 'vietnamese',
+    tier: 3,
+    fetchIntervalHours: 2,
+    enabled: false,
+    language: 'vi',
+  },
+  {
+    slug: 'tapchibitcoin',
+    name: 'Tạp Chí Bitcoin',
+    url: 'https://tapchibitcoin.io/feed',
+    category: 'vietnamese',
+    tier: 3,
+    fetchIntervalHours: 2,
+    enabled: false,
+    language: 'vi',
+  },
+  {
+    slug: 'marktechpost',
+    name: 'MarkTechPost',
+    url: 'https://www.marktechpost.com/feed/',
+    category: 'ai',
+    tier: 4,
+    fetchIntervalHours: 2,
+    enabled: false,
+    language: 'en',
   },
 ];

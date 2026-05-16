@@ -2,6 +2,9 @@ import type Database from 'better-sqlite3';
 import { getDb } from './index.js';
 import type { Source } from './types.js';
 import type { RssSourceConfig } from '../config/rss-sources.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('database:sources');
 
 export function seedSources(sources: RssSourceConfig[], db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -65,6 +68,47 @@ export interface SourceStatusRow {
   last_fetched_at: string | null;
   article_count: number;
   last_article_date: string | null;
+}
+
+/**
+ * Re-maps articles.source_id to the correct source based on article URL domain.
+ * Needed after any migration that drops+recreates the sources table (auto-increment IDs shift).
+ * Idempotent: skips articles already pointing at the correct source.
+ */
+export function repairArticleSourceIds(sources: RssSourceConfig[], db?: Database.Database): void {
+  const conn = db ?? getDb();
+  const dbSources = getAllSources(conn);
+
+  let totalRepaired = 0;
+
+  for (const dbSource of dbSources) {
+    const config = sources.find((s) => s.slug === dbSource.slug);
+    if (!config) continue;
+
+    let domain: string;
+    if (config.articleDomain) {
+      domain = config.articleDomain;
+    } else {
+      try {
+        domain = new URL(config.url).hostname.replace(/^www\./, '');
+      } catch {
+        continue;
+      }
+    }
+
+    const result = conn.prepare(
+      'UPDATE articles SET source_id = ? WHERE url LIKE ? AND source_id != ?'
+    ).run(dbSource.id, `%${domain}%`, dbSource.id) as { changes: number };
+
+    if (result.changes > 0) {
+      logger.info(`Repaired ${result.changes} articles → source "${dbSource.slug}" (${domain})`);
+      totalRepaired += result.changes;
+    }
+  }
+
+  if (totalRepaired > 0) {
+    logger.info(`Source ID repair complete: ${totalRepaired} articles re-mapped`);
+  }
 }
 
 export function getSourcesStatus(db?: Database.Database): SourceStatusRow[] {

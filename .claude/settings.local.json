@@ -21,7 +21,15 @@
       "Bash(curl -sL -o /dev/null -w \"%{http_code} %{url_effective}\" \"https://paragraph.xyz/@base/feed\")",
       "Bash(curl -sL -w \"\\\\n\" \"https://paragraph.xyz/@base/feed\")",
       "Bash(npm test *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(ls ~/.inkpilot/)",
+      "Read(//Users/lavopavden/.inkpilot/**)",
+      "Bash(cp ~/.inkpilot/inkpilot.db ~/.inkpilot/inkpilot.db.bak-0.3.0 && echo \"Backup OK\")",
+      "Bash(sqlite3 ~/.inkpilot/inkpilot.db ' *)",
+      "Bash(npm run *)"
+    ],
+    "additionalDirectories": [
+      "/Users/lavopavden/.inkpilot"
     ]
   }
 }

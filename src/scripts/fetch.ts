@@ -4,7 +4,7 @@ import path from 'node:path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 import { initDb } from '../database/index.js';
-import { seedSources } from '../database/sources.js';
+import { seedSources, repairArticleSourceIds } from '../database/sources.js';
 import { RSS_SOURCES } from '../config/rss-sources.js';
 import { runFetch } from '../feed-fetcher/index.js';
 import { createLogger } from '../utils/logger.js';
@@ -19,6 +19,7 @@ function formatTokens(n: number): string {
 async function main(): Promise<void> {
   initDb();
   seedSources(RSS_SOURCES);
+  repairArticleSourceIds(RSS_SOURCES);
 
   const verbose = process.argv.includes('--verbose');
   const result = await runFetch(undefined, undefined, verbose);
