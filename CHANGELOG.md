@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2] - 2026-05-16
+### Fixed
+- **`list --hot` appeared to ignore 7.5 threshold** (FIX 1): investigation confirmed the threshold was correctly `>= 7.5` in all queries since v0.4.1; the root cause of the observation was a data distribution issue — there are 82 articles scoring 8.0+ in the 30-day window, which fills `--limit=50` before reaching the 7.5–7.9 band (57 articles); the fix is a UX improvement rather than a logic fix
+
+### Changed
+- **List footer now shows total count when limit is hit** (CHG 1): `renderTieredView` footer changed from `"Showing 20 hot, 15 other"` to `"Showing 20 of 139 hot, 15 of 423 other (last 30 days)"` — the `"of N"` suffix appears only when the displayed count is less than total; `renderFlatView` footer similarly changed from `"Showing 50 article(s)"` to `"Showing 50 of 139 article(s)"`; footer hint updated from `"Use --days=N to change"` to `"Use --days=N or --limit=N to adjust"`
+- **Refactored `list.ts` condition building** (CHG 2): extracted shared WHERE clause logic from `queryScoredArticles` into `buildArticleConditions(flags)` + `ARTICLE_JOINS` constant; added `countScoredArticles(flags, db)` reusing the same builder for COUNT(*) queries; no behavior change — same SQL conditions as before, just de-duplicated
+
 ## [0.4.1] - 2026-05-16
 ### Fixed
 - **Recency filter used `fetched_at` as fallback** (FIX 1): `queryScoredArticles` filtered by `COALESCE(a.published_at, a.fetched_at) >= datetime('now', '-N days')` — articles with no `published_at` fell back to `fetched_at` (the DB insert time); articles re-inserted during the v0.3.0 source repair had a recent `fetched_at` despite being published in 2025, so old Optimism (Jun 2025) and Blockworks (Dec 2025) articles surfaced in the HOT list; fix: condition changed to `a.published_at >= datetime('now', '-N days')` — articles without a publication date are excluded from the default view (not a regression — no published_at means no date to filter on)

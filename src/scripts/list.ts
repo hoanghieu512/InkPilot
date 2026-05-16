@@ -63,10 +63,7 @@ interface ScoredArticleRow {
   category: string | null;
 }
 
-function queryScoredArticles(
-  flags: CliFlags,
-  db: Database.Database,
-): ScoredArticleRow[] {
+function buildArticleConditions(flags: CliFlags): { conditions: string[]; params: unknown[] } {
   const conditions: string[] = [];
   const params: unknown[] = [];
 
@@ -98,8 +95,22 @@ function queryScoredArticles(
     conditions.push("ast.state != 'dismissed'");
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { conditions, params };
+}
 
+const ARTICLE_JOINS = `
+  FROM articles a
+  LEFT JOIN sources s ON a.source_id = s.id
+  LEFT JOIN article_states ast ON a.id = ast.article_id
+  LEFT JOIN filter_results fr ON a.id = fr.article_id
+`;
+
+function queryScoredArticles(
+  flags: CliFlags,
+  db: Database.Database,
+): ScoredArticleRow[] {
+  const { conditions, params } = buildArticleConditions(flags);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const orderBy = (flags.hot || flags.other || (!flags.all && !flags.state))
     ? 'ORDER BY fr.score DESC, a.fetched_at DESC'
     : 'ORDER BY a.fetched_at DESC';
@@ -109,16 +120,23 @@ function queryScoredArticles(
            s.slug as source_slug, s.name as source_name,
            ast.state as article_state,
            fr.score, fr.suggested_angle, fr.category
-    FROM articles a
-    LEFT JOIN sources s ON a.source_id = s.id
-    LEFT JOIN article_states ast ON a.id = ast.article_id
-    LEFT JOIN filter_results fr ON a.id = fr.article_id
+    ${ARTICLE_JOINS}
     ${where}
     ${orderBy}
     LIMIT ?
   `;
 
   return db.prepare(sql).all(...params, flags.limit) as ScoredArticleRow[];
+}
+
+function countScoredArticles(
+  flags: CliFlags,
+  db: Database.Database,
+): number {
+  const { conditions, params } = buildArticleConditions(flags);
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const sql = `SELECT COUNT(*) AS cnt ${ARTICLE_JOINS} ${where}`;
+  return (db.prepare(sql).get(...params) as { cnt: number }).cnt;
 }
 
 function formatTimeAgo(dateStr: string | null): string {
@@ -144,8 +162,12 @@ function padLeft(text: string, width: number): string {
 }
 
 function renderTieredView(flags: CliFlags, db: Database.Database): void {
-  const hotArticles = queryScoredArticles({ ...flags, hot: true, other: false, all: false }, db);
-  const otherArticles = queryScoredArticles({ ...flags, hot: false, other: true, all: false }, db);
+  const hotFlags = { ...flags, hot: true, other: false, all: false };
+  const otherFlags = { ...flags, hot: false, other: true, all: false };
+  const hotArticles = queryScoredArticles(hotFlags, db);
+  const otherArticles = queryScoredArticles(otherFlags, db);
+  const totalHot = countScoredArticles(hotFlags, db);
+  const totalOther = countScoredArticles(otherFlags, db);
 
   const LINE_WIDTH = 90;
 
@@ -184,7 +206,9 @@ function renderTieredView(flags: CliFlags, db: Database.Database): void {
   }
 
   console.log();
-  console.log(`Showing ${hotArticles.length} hot, ${otherArticles.length} other (last ${flags.days} days). Use --days=N to change.`);
+  const hotSuffix = totalHot > hotArticles.length ? ` of ${totalHot}` : '';
+  const otherSuffix = totalOther > otherArticles.length ? ` of ${totalOther}` : '';
+  console.log(`Showing ${hotArticles.length}${hotSuffix} hot, ${otherArticles.length}${otherSuffix} other (last ${flags.days} days). Use --days=N or --limit=N to adjust.`);
   console.log();
 }
 
@@ -231,6 +255,7 @@ function renderFlatView(flags: CliFlags, db: Database.Database): void {
     }
   }
 
+  const total = countScoredArticles(flags, db);
   const qualifier = [
     flags.today ? '(today)' : '',
     flags.source ? `from ${flags.source}` : '',
@@ -238,8 +263,9 @@ function renderFlatView(flags: CliFlags, db: Database.Database): void {
     flags.other ? '(other only)' : '',
   ].filter(Boolean).join(' ');
 
+  const countLabel = total > articles.length ? `${articles.length} of ${total}` : `${articles.length}`;
   console.log();
-  console.log(`Showing ${articles.length} article(s) ${qualifier} (last ${flags.days} days). Use --days=N to change.`.trim());
+  console.log(`Showing ${countLabel} article(s) ${qualifier} (last ${flags.days} days). Use --days=N or --limit=N to adjust.`.trim());
   console.log();
 }
 

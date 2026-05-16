@@ -53,7 +53,7 @@ npm test                         # vitest run — 39 tests, in-memory SQLite
 | `src/database/filter-results.ts` | `isArticleScored`, `cacheArticleBrief`, `getCachedBrief` |
 | `src/database/index.ts` | `initDb` / `getDb` / `resetDb` (tests use `resetDb`) |
 
-## Current state (v0.4.1)
+## Current state (v0.4.2)
 
 **9/16 sources enabled.** Enabled: Decrypt, Bankless, CoinDesk, Blockworks, ETH Research Forum, Bitcoin Optech, Ethereum Foundation Blog, Arbitrum Foundation, CoinCu News. Disabled: The Block + Base Blog (Cloudflare), Optimism Blog (stale since Jun 2025), Vitalik/Coin68/Tạp Chí Bitcoin/MarkTechPost (retained disabled for FK integrity — articles exist in DB).
 

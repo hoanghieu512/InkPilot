@@ -201,7 +201,7 @@ flowchart TB
 | Path | EN (role) | VI (vai trò) |
 |------|-----------|--------------|
 | `src/scripts/fetch.ts` | CLI entry: seed sources → scrape RSS → insert → OG → Haiku score → cost summary; `--verbose` flag logs per-source item/new/dup counts | CLI: seed → scrape → insert → OG → score → chi phí; `--verbose` log per-source |
-| `src/scripts/list.ts` | CLI entry: tiered inbox (HOT/OTHER), `--hot`, `--other`, `--all`, `--today`, `--days=N`, `--source`, `--state` | CLI list: tiered inbox, filter đa dạng, recency filter |
+| `src/scripts/list.ts` | CLI entry: tiered inbox (HOT/OTHER), `--hot`, `--other`, `--all`, `--today`, `--days=N`, `--source`, `--state`; footer shows `"X of Y"` total count when limit is hit; condition building shared via `buildArticleConditions` + `countScoredArticles` | CLI list: tiered inbox, filter đa dạng, recency filter, total count trong footer |
 | `src/scripts/brief.ts` | CLI: `npm run brief <id> [--refresh]` → load → cache? → Sonnet? → cache DB → export angle `.md` → print | CLI brief + refresh + export vault |
 | `src/scripts/sources-status.ts` | CLI: `npm run sources:status` — init DB → seed → `getSourcesStatus()` → print aligned table (name, enabled, article count, last article date, last fetch) | CLI trạng thái nguồn — bảng per-source, không cần API key |
 | `src/scripts/stats-scoring.ts` | CLI: `npm run stats:scoring [--days=N]` — 8-bucket histogram (split at `SCORE_THRESHOLDS.HOT = 7.5`; buckets: `7–7.5` near-HOT, `7.5–8` ← HOT) + HOT/OTHER/dismissed totals + avg score; second query for Haiku-assigned category breakdown; read-only, no API key | CLI diagnostic scoring: histogram 8 bucket, tỉ lệ, category breakdown |

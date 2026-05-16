@@ -136,7 +136,7 @@ OTHER  (score 6–7.4)
 [7.2]   41  DeFi TVL reaches new high amid...          CoinDesk         3h ago
 [6.8]   39  Kraken acquires...                         CoinDesk         6h ago
 
-Showing 2 hot, 2 other (last 30 days). Use --days=N to change.
+Showing 2 of 139 hot, 2 of 423 other (last 30 days). Use --days=N or --limit=N to adjust.
 ```
 
 ### Research Brief
@@ -365,6 +365,7 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **v0.3.1** — Data integrity fix (939 articles re-mapped after source_id orphan bug; disable stale Optimism feed; add `repairArticleSourceIds`)
 - [x] **v0.4.0** — HOT pipeline diagnostics (`stats:scoring`, `stats:sources`, `inspect:near-hot`)
 - [x] **v0.4.1** — HOT threshold 8.0 → 7.5, fixed 12-category Haiku enum, recency filter bug fix
+- [x] **v0.4.2** — List footer shows `"X of Y"` total count when limit is hit; refactored `list.ts` condition builder
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
 
