@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
+main().then(() => process.exit(0)).catch((err) => {
   logger.error('Fetch failed', { error: String(err) });
   process.exit(1);
 });

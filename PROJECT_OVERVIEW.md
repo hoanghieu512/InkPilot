@@ -367,16 +367,25 @@ post_metrics     — engagement metrics (planned — Slice 5+)
 
 ### 9.1 Haiku Scoring — Relevance filter
 
+Niche priority stack (weighted by creator's content focus):
+
+| Priority | Niche | Topics |
+|----------|-------|--------|
+| **PRIMARY (~50%)** | Security | Hacks, exploits, bridge attacks, post-mortems; smart contract vulnerabilities, audit findings; wallet security, phishing, social engineering; bug bounties, formal verification, ZK proof vulnerabilities |
+| **SECONDARY (~30%)** | Tokenomics | Token design, emission schedules, vesting cliff analysis; liquid staking (Lido, EtherFi, Rocket Pool), restaking (EigenLayer, Symbiotic); protocol revenue, fee mechanisms (EIP-1559, burn, fee switches); treasury management, DAO funding, buy-backs; airdrop design critique |
+| **TERTIARY (~20%)** | L1/L2 Infrastructure | Ethereum upgrades (Pectra, Fusaka, EIPs), R&D, protocol research; L2 rollups (Base, Arbitrum, Optimism, zkSync, StarkNet); Bitcoin protocol (Optech, taproot, Lightning, OP_CAT); DA layers (EigenDA, Celestia); MEV, PBS, shared sequencing |
+
+Scoring rubric (aligned to `SCORE_THRESHOLDS.HOT = 7.5`):
+
 | EN | VI |
 |----|----|
-| **9.0–10.0**: Significant protocol update, major ecosystem development, original research | **9.0–10.0**: Update protocol lớn, phát triển hệ sinh thái quan trọng, nghiên cứu gốc |
-| **7.0–8.9**: Interesting development, clear angle, relevant to focus areas | **7.0–8.9**: Phát triển thú vị, có angle rõ, liên quan focus areas |
-| **5.0–6.9**: Tangentially relevant, low angle potential | **5.0–6.9**: Liên quan nhẹ, ít tiềm năng viết take |
-| **0.0–4.9**: Spam, listicle, price prediction, auto-dismissed | **0.0–4.9**: Spam, listicle, dự đoán giá, tự ẩn |
+| **9.0–10.0**: Major security incident with meaningful analysis, landmark protocol upgrade, or structural tokenomics change with broad ecosystem impact | **9.0–10.0**: Sự cố bảo mật lớn có phân tích, nâng cấp protocol quan trọng, thay đổi tokenomics mang tầm ecosystem |
+| **7.5–8.9**: Clear development within the 3 niches — strong angle exists for a take | **7.5–8.9**: Phát triển rõ trong 3 niche — có angle mạnh để viết take |
+| **5.0–7.4**: Tangentially relevant to niches, weak angle potential, or minor niche overlap | **5.0–7.4**: Liên quan nhẹ, ít tiềm năng angle hoặc overlap nhỏ với niche |
+| **3.0–4.9**: General crypto news outside the niches | **3.0–4.9**: Tin crypto chung, ngoài 3 niche |
+| **0.0–2.9**: Spam, listicle, price prediction, auto-dismissed | **0.0–2.9**: Spam, listicle, dự đoán giá, tự ẩn |
 
-**Focus areas (score higher):** L2 & infrastructure, DeFi, SocialFi & decentralized social, AI × Crypto, Developer tooling, Vietnamese crypto community.
-
-**Penalty areas (score lower):** Price analysis, celebrity endorsements, meme coin launches, exchange listings, generic regulation, listicles, airdrop guides.
+**Penalty areas (score lower):** Pure price analysis, celebrity endorsements, meme coin launches (unless security/tokenomics angle), exchange listings, custody announcements, spot ETF noise, "Top N coins to buy" listicles, airdrop farming guides, generic regulation without enforcement detail, price predictions and TA articles.
 
 | Metric | Value |
 |--------|-------|

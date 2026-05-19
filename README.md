@@ -321,18 +321,22 @@ Thêm/xóa/sửa nguồn: sửa file `src/config/rss-sources.ts` → thay đổi
 
 ## AI Scoring
 
-Haiku scoring sử dụng hệ thống prompt tập trung vào focus areas:
+Haiku scoring dùng hệ thống prompt theo niche priority stack của creator:
+
+| Priority | Niche | Ví dụ |
+|----------|-------|-------|
+| **PRIMARY (~50%)** | **Security** | Hacks, exploits, bridge attacks, post-mortems, smart contract vulnerabilities, audit findings, phishing, bug bounties |
+| **SECONDARY (~30%)** | **Tokenomics** | Token design, emission schedules, liquid/restaking (Lido, EigenLayer), protocol revenue, fee mechanisms, treasury, airdrop design |
+| **TERTIARY (~20%)** | **L1/L2 Infra** | Ethereum upgrades + EIPs, L2 rollups, Bitcoin Optech/Lightning, DA layers, MEV/PBS |
 
 | Score | Ý nghĩa | Hành động |
 |-------|---------|-----------|
-| 9.0–10.0 | Protocol update lớn, original research | HOT — hiện mặc định |
-| 7.5–8.9 | Đáng viết take, có angle rõ ràng | HOT — hiện mặc định |
-| 6.0–7.4 | Liên quan, có thể có angle | OTHER — hiện khi `--other` |
-| < 6.0 | Spam, listicle, price prediction | Auto-dismissed |
+| 9.0–10.0 | Sự cố bảo mật lớn có phân tích, nâng cấp protocol landmark, thay đổi tokenomics tầm ecosystem | HOT — hiện mặc định |
+| 7.5–8.9 | Phát triển rõ trong 3 niche — có angle mạnh để viết take | HOT — hiện mặc định |
+| 5.0–7.4 | Liên quan nhẹ, ít tiềm năng angle | OTHER — hiện khi `--other` |
+| < 5.0 | Spam, listicle, price prediction, tin ngoài niche | Auto-dismissed (< 6.0) |
 
-**Focus areas** (score cao hơn): L2/infrastructure, DeFi, SocialFi, AI×Crypto, developer tooling, Vietnamese crypto community.
-
-**Penalty** (score thấp hơn): price analysis, celebrity endorsements, meme coins, exchange listings, airdrop guides.
+**Penalty** (score thấp hơn): price analysis thuần, celebrity endorsements, meme coins, exchange listings, airdrop farming guides, generic regulation, price predictions.
 
 **Chi phí thực tế**: ~$0.50 cho 1000 bài (Haiku pricing: $0.80/1M input, $4.00/1M output tokens).
 
@@ -366,6 +370,7 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **v0.4.0** — HOT pipeline diagnostics (`stats:scoring`, `stats:sources`, `inspect:near-hot`)
 - [x] **v0.4.1** — HOT threshold 8.0 → 7.5, fixed 12-category Haiku enum, recency filter bug fix
 - [x] **v0.4.2** — List footer shows `"X of Y"` total count when limit is hit; refactored `list.ts` condition builder
+- [x] **v0.4.3** — Haiku niche priority stack (Security > Tokenomics > L1/L2 Infra); fix process hang on fetch/brief completion
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
 

@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   printBrief(brief);
 }
 
-main().catch((err) => {
+main().then(() => process.exit(0)).catch((err) => {
   const msg = err instanceof Error ? err.message : String(err);
   logger.error(msg);
   console.error(`\nError: ${msg}\n`);

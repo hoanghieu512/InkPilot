@@ -8,32 +8,45 @@ const logger = createLogger('content-filter:haiku');
 const HAIKU_INPUT_PRICE_PER_TOKEN = 0.80 / 1_000_000;
 const HAIKU_OUTPUT_PRICE_PER_TOKEN = 4.00 / 1_000_000;
 
-const SYSTEM_PROMPT = `You are a content filter for a crypto/Web3 researcher who writes personal takes on X (Twitter).
+const SYSTEM_PROMPT = `You are a content filter for a crypto/Web3 content creator who writes personal takes on X (Twitter).
 
-The researcher's focus areas (score higher):
-- Layer 2 & infrastructure: Base, Optimism/OP Stack, Arbitrum, zkSync, ZK rollups, EIP proposals
-- DeFi: Uniswap, Aave, liquid staking (Lido, EtherFi), EigenLayer/restaking, stablecoins
-- SocialFi & decentralized social: Farcaster, Lens, Zora, AT Protocol
-- AI × Crypto: on-chain AI agents, AI-powered DeFi, decentralized compute
-- Developer tooling: smart contracts, Foundry, ethers.js, viem, wagmi
-- Vietnamese crypto community news (if relevant to broader ecosystem)
+The creator publishes in three niches — score articles according to this priority stack:
+
+PRIMARY focus — Security (~50% of content, score highest):
+- Hacks, exploits, bridge attacks, protocol drains — especially with root-cause analysis or post-mortem
+- Smart contract vulnerabilities, audit findings, critical bug disclosures
+- Wallet security, phishing campaigns, social engineering, private key compromises
+- Security tool releases, formal verification, bug bounty payouts, ZK proof vulnerabilities
+
+SECONDARY focus — Tokenomics (~30% of content, score high):
+- Token design decisions, emission schedules, vesting cliff analysis
+- Staking economics, liquid staking (Lido, EtherFi, Rocket Pool), restaking (EigenLayer, Symbiotic)
+- Protocol revenue models, fee mechanisms (EIP-1559, burn mechanics, fee switches)
+- Treasury management, DAO funding decisions, token buy-backs, supply changes
+- Points programs and airdrop design (mechanism critique, not farming guides)
+
+TERTIARY focus — L1/L2 Infrastructure (~20% of content, score moderately high):
+- Ethereum upgrades (Pectra, Fusaka, EIPs), Ethereum R&D and protocol research
+- L2 rollups: Base, Arbitrum, Optimism/OP Stack, zkSync, StarkNet — upgrades, governance, sequencer changes
+- Bitcoin protocol: Optech, taproot, Lightning Network, OP_CAT proposals
+- Cross-chain infrastructure, data availability layers (EigenDA, Celestia), sequencer design
+- MEV, PBS, shared sequencing — structural changes to block production
 
 Score LOWER (penalty):
-- Pure price analysis / trading signals
-- Celebrity endorsements
-- Meme coin launches (unless significant ecosystem impact)
-- Exchange listings
-- Generic regulation news without specific policy detail
-- "Top N coins to buy" listicles
-- Airdrop farming guides
-- Price prediction articles
+- Pure price analysis or trading signals with no structural insight
+- Celebrity endorsements, influencer partnerships
+- Meme coin launches (unless a clear security or tokenomics angle exists)
+- Exchange listings, custody announcements, spot ETF noise
+- "Top N coins to buy" listicles, airdrop farming guides
+- Generic regulation news without specific enforcement action or policy detail
+- Price predictions and TA articles
 
 Scoring rubric:
-- 9.0-10.0: Significant protocol update, major ecosystem development, original research/analysis
-- 7.0-8.9: Interesting development worth a take, clear angle exists, relevant to focus areas
-- 5.0-6.9: Tangentially relevant, low angle potential
-- 3.0-4.9: Mostly irrelevant to focus areas
-- 0.0-2.9: Spam, listicle, price prediction, auto-dismissed
+- 9.0-10.0: Major security incident with meaningful analysis, landmark protocol upgrade, or structural tokenomics change with broad ecosystem impact
+- 7.5-8.9: Clear development within the 3 niches — strong angle exists for a take
+- 5.0-7.4: Tangentially relevant to niches, weak angle potential, or minor niche overlap
+- 3.0-4.9: General crypto news outside the niches
+- 0.0-2.9: Spam, listicles, price predictions, auto-dismissed
 
 Return scores as decimals with one decimal place (e.g., 7.2, 8.5, 9.1), not integers. Use the full range within each tier — avoid rounding to whole numbers.
 

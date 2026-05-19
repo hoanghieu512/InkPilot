@@ -53,7 +53,9 @@ npm test                         # vitest run — 39 tests, in-memory SQLite
 | `src/database/filter-results.ts` | `isArticleScored`, `cacheArticleBrief`, `getCachedBrief` |
 | `src/database/index.ts` | `initDb` / `getDb` / `resetDb` (tests use `resetDb`) |
 
-## Current state (v0.4.2)
+## Current version: v0.4.3
+
+## Current state
 
 **9/16 sources enabled.** Enabled: Decrypt, Bankless, CoinDesk, Blockworks, ETH Research Forum, Bitcoin Optech, Ethereum Foundation Blog, Arbitrum Foundation, CoinCu News. Disabled: The Block + Base Blog (Cloudflare), Optimism Blog (stale since Jun 2025), Vitalik/Coin68/Tạp Chí Bitcoin/MarkTechPost (retained disabled for FK integrity — articles exist in DB).
 
@@ -62,6 +64,20 @@ npm test                         # vitest run — 39 tests, in-memory SQLite
 **User context files** read at runtime from `~/Dev/projects/Content-Creator/about-me.md` and `tone-guidelines.md`. Missing files → graceful fallback, brief still generated.
 
 **Vault template** at `~/Dev/vault/templates/angle-template.md` — uses `__KEY__` placeholders (not `{{}}`, YAML-safe). Output goes to `~/Dev/vault/projects/content-creator/angles/YYYY-MM-DD-<id>-<slug>.md`.
+
+## Release workflow
+
+After each implementation, run in order:
+
+1. `npm test` — all 39 tests must pass
+2. `tsc --noEmit` — must pass clean before bumping version
+3. Bump `"version"` in `package.json`
+4. Update `## Current version:` in `CLAUDE.md`
+5. Add entry `## [X.Y.Z]` at top of `CHANGELOG.md`
+6. *(only when user requests "update docs/readme/overview", or changes affect documented flows)*
+   - Update `PROJECT_OVERVIEW.md` — module notes + Known Issues table + footer version/date
+   - Update `README.md` — bullets related to changed features
+   - Update memory file `/Users/lavopavden/.claude/projects/-Users-lavopavden-Dev-projects-InkPilot/memory/project_overview.md` — version + version history table row
 
 ## Test conventions
 

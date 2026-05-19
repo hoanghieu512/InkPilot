@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3] - 2026-05-19
+### Fixed
+- **`npm run fetch` hung after completion** (FIX 1): Anthropic SDK keeps HTTP keep-alive connections alive, preventing Node.js from exiting after `main()` resolved; added `.then(() => process.exit(0))` to `scripts/fetch.ts` and `scripts/brief.ts`; non-zero exits unchanged — `.catch` still calls `process.exit(1)`
+
+### Changed
+- **Haiku scoring prompt rewritten with niche priority stack** (CHG 1): replaced generic focus-areas list with explicit PRIMARY/SECONDARY/TERTIARY priority — Security (~50%: hacks, exploits, bridge attacks, smart contract vulnerabilities, audit findings, wallet security, phishing campaigns, bug bounties, formal verification), Tokenomics (~30%: token design, emission schedules, vesting cliff analysis, liquid staking (Lido, EtherFi, Rocket Pool), restaking (EigenLayer, Symbiotic), protocol revenue, treasury management, fee mechanisms, airdrop mechanism critique), L1/L2 Infrastructure (~20%: Ethereum upgrades + EIPs, L2 rollups (Base, Arbitrum, Optimism, zkSync, StarkNet), Bitcoin Optech/taproot/Lightning/OP_CAT, DA layers (EigenDA, Celestia), MEV/PBS/shared sequencing); scoring rubric updated to align with 7.5 HOT threshold — 9.0–10.0 major security incident or structural tokenomics change, 7.5–8.9 clear niche development with angle potential, 5.0–7.4 tangential, 3.0–4.9 general crypto, 0.0–2.9 spam/auto-dismissed; penalty areas and 12-category enum unchanged; existing scored articles not affected (scoring is idempotent)
+- **`CLAUDE.md` release workflow section added** (CHG 2): embedded the 6-step release checklist (npm test → tsc --noEmit → version bump → CLAUDE.md → CHANGELOG → optional docs update) directly in `CLAUDE.md`
+
 ## [0.4.2] - 2026-05-16
 ### Fixed
 - **`list --hot` appeared to ignore 7.5 threshold** (FIX 1): investigation confirmed the threshold was correctly `>= 7.5` in all queries since v0.4.1; the root cause of the observation was a data distribution issue — there are 82 articles scoring 8.0+ in the 30-day window, which fills `--limit=50` before reaching the 7.5–7.9 band (57 articles); the fix is a UX improvement rather than a logic fix
