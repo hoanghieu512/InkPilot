@@ -80,9 +80,32 @@ CREATE TABLE IF NOT EXISTS post_metrics (
   fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS reply_tracking (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT NOT NULL UNIQUE,
+  post_url TEXT,
+  posted_date TEXT NOT NULL,
+  post_text TEXT,
+  kol_handle TEXT,
+  niche TEXT NOT NULL DEFAULT 'other' CHECK(niche IN ('security','tokenomics','l1l2','other')),
+  impressions INTEGER NOT NULL DEFAULT 0,
+  engagements INTEGER NOT NULL DEFAULT 0,
+  new_follows INTEGER NOT NULL DEFAULT 0,
+  parent_tweet_id TEXT,
+  parent_impressions INTEGER,
+  parent_engagements INTEGER,
+  reply_created_at TEXT,
+  hour INTEGER,
+  enriched_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_url ON articles(url);
 CREATE INDEX IF NOT EXISTS idx_articles_published_at ON articles(published_at);
 CREATE INDEX IF NOT EXISTS idx_article_states_state ON article_states(state);
 CREATE INDEX IF NOT EXISTS idx_posts_posted_at ON posts(posted_at);
 CREATE INDEX IF NOT EXISTS idx_posts_platform ON posts(platform);
+CREATE INDEX IF NOT EXISTS idx_reply_tracking_posted_date ON reply_tracking(posted_date);
+CREATE INDEX IF NOT EXISTS idx_reply_tracking_kol ON reply_tracking(kol_handle);
 `;

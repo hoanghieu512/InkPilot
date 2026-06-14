@@ -1,6 +1,6 @@
 {
   "name": "inkpilot",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "stats:sources": "tsx src/scripts/stats-sources.ts",
     "inspect:near-hot": "tsx src/scripts/inspect-near-hot.ts",
     "brief": "tsx src/scripts/brief.ts",
+    "reply:analyze": "tsx src/scripts/reply-analyze.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
