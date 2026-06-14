@@ -17,6 +17,17 @@ function optionalEnv(key: string, fallback: string): string {
   return process.env[key] || fallback;
 }
 
+export function requireTwitterApiIoKey(): string {
+  const key = process.env['TWITTERAPI_IO_KEY'];
+  if (!key) {
+    throw new Error(
+      'Missing required env var: TWITTERAPI_IO_KEY. Add it to .env (see .env.example). ' +
+        'Get a key at https://twitterapi.io. Or pass --skip-enrich to run CSV-only.',
+    );
+  }
+  return key;
+}
+
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
 
 function resolveDbPath(raw: string): string {

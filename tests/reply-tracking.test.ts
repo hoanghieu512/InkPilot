@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { mapTweet, computeHourPlus7 } from '../src/reply-tracking/enricher.js';
 import Database from 'better-sqlite3';
 import {
   upsertReply,
@@ -307,5 +308,42 @@ describe('buildSnapshot', () => {
       { week: '2026-06-01', avgImpPerReply: 150 },
       { week: '2026-06-08', avgImpPerReply: 300 },
     ]);
+  });
+});
+
+describe('enricher helpers', () => {
+  it('computeHourPlus7 converts UTC to +07:00 hour', () => {
+    expect(computeHourPlus7('2026-06-05T03:00:00.000Z')).toBe(10);
+    expect(computeHourPlus7('2026-06-05T20:00:00.000Z')).toBe(3); // wraps next day
+    expect(computeHourPlus7('not a date')).toBeNull();
+    expect(computeHourPlus7(null)).toBeNull();
+  });
+
+  it('mapTweet extracts the fields we need', () => {
+    const json = {
+      id: '999',
+      createdAt: '2026-06-05T03:00:00.000Z',
+      author: { userName: 'samczsun' },
+      inReplyToId: '888',
+      viewCount: 5000,
+      likeCount: 100,
+      retweetCount: 10,
+      replyCount: 5,
+      quoteCount: 5,
+    };
+    const m = mapTweet(json);
+    expect(m.id).toBe('999');
+    expect(m.createdAt).toBe('2026-06-05T03:00:00.000Z');
+    expect(m.authorHandle).toBe('@samczsun');
+    expect(m.inReplyToId).toBe('888');
+    expect(m.impressions).toBe(5000);
+    expect(m.engagements).toBe(120); // 100+10+5+5
+  });
+
+  it('mapTweet tolerates missing metrics', () => {
+    const m = mapTweet({ id: '1' });
+    expect(m.impressions).toBeNull();
+    expect(m.engagements).toBeNull();
+    expect(m.authorHandle).toBeNull();
   });
 });
