@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mapTweet, computeHourPlus7 } from '../src/reply-tracking/enricher.js';
 import Database from 'better-sqlite3';
 import {
@@ -24,6 +24,7 @@ import {
 import { buildSnapshot, weekStart, nowIsoPlus7 } from '../src/reply-tracking/snapshot-builder.js';
 import type { ContentRow } from '../src/reply-tracking/types.js';
 import type { ReplyRow } from '../src/database/reply-tracking.js';
+import { runReplyAnalyze } from '../src/reply-tracking/index.js';
 
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -345,5 +346,78 @@ describe('enricher helpers', () => {
     expect(m.impressions).toBeNull();
     expect(m.engagements).toBeNull();
     expect(m.authorHandle).toBeNull();
+  });
+});
+
+describe('runReplyAnalyze orchestrator', () => {
+  let db: Database.Database;
+  let dir: string;
+  beforeEach(() => {
+    db = createTestDb();
+    dir = mkdtempSync(join(tmpdir(), 'inkpilot-reply-'));
+  });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  function writeContent(): string {
+    const csv = [
+      'Post id,Date,Post text,Post Link,Impressions,Engagements,New follows',
+      '111,"Fri, Jun 5, 2026","@samczsun nice point",https://x.com/u/status/111,71,2,1',
+      '222,"Fri, Jun 5, 2026","just a normal original post",https://x.com/u/status/222,500,15,4',
+      '333,"Fri, Jun 5, 2026","@some_rando small",https://x.com/u/status/333,40,0,0',
+    ].join('\n') + '\n';
+    const p = join(dir, 'content.csv');
+    writeFileSync(p, csv);
+    return p;
+  }
+  function writeOverview(): string {
+    const csv = [
+      'Date,Impressions,New follows,Unfollows',
+      '"Fri, Jun 5, 2026",941,12,0',
+      '"Mon, Jun 1, 2026",781,6,4',
+    ].join('\n') + '\n';
+    const p = join(dir, 'overview.csv');
+    writeFileSync(p, csv);
+    return p;
+  }
+
+  it('parses, stores replies (not originals), enriches, and is idempotent', async () => {
+    const contentPath = writeContent();
+    const overviewPath = writeOverview();
+    const stubEnrich = async (postId: string) => ({
+      replyCreatedAt: '2026-06-05T03:00:00.000Z', hour: 10,
+      parentTweetId: 'p' + postId, parentImpressions: 5000, parentEngagements: 100,
+      parentAuthorHandle: '@samczsun',
+    });
+
+    const res1 = await runReplyAnalyze({ contentPath, overviewPath, enrichFn: stubEnrich, exportFn: () => 'X', db });
+    expect(res1.snapshot.summary.replyCount).toBe(2);   // 111 + 333
+    expect(res1.snapshot.summary.originalCount).toBe(1); // 222
+    expect(res1.snapshot.summary.dudRate).toBe(0.5);     // 333 is a dud
+    expect(getAllReplies(db)).toHaveLength(2);
+    expect(res1.enriched).toBe(2);
+
+    // re-run same CSV: no duplicates, no re-enrichment
+    const res2 = await runReplyAnalyze({ contentPath, overviewPath, enrichFn: stubEnrich, exportFn: () => 'X', db });
+    expect(getAllReplies(db)).toHaveLength(2);
+    expect(res2.enriched).toBe(0);
+    // niche lookup applied
+    const security = res2.snapshot.byNiche.find((n) => n.niche === 'security')!;
+    expect(security.replies).toBe(1); // @samczsun
+  });
+
+  it('does not crash when enrichment of one reply throws', async () => {
+    const contentPath = writeContent();
+    const overviewPath = writeOverview();
+    const flaky = async (postId: string) => {
+      if (postId === '333') throw new Error('boom');
+      return {
+        replyCreatedAt: '2026-06-05T03:00:00.000Z', hour: 10, parentTweetId: 'p',
+        parentImpressions: 5000, parentEngagements: 100, parentAuthorHandle: '@x',
+      };
+    };
+    const res = await runReplyAnalyze({ contentPath, overviewPath, enrichFn: flaky, exportFn: () => 'X', db });
+    expect(res.enriched).toBe(1);
+    expect(res.enrichFailed).toBe(1);
+    expect(getAllReplies(db)).toHaveLength(2);
   });
 });
