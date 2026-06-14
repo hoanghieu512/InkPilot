@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
@@ -44,8 +45,17 @@ export async function runReplyAnalyze(opts: RunReplyAnalyzeOptions = {}): Promis
   const exportFn = opts.exportFn ?? exportSnapshot;
   const db = opts.db;
 
+  if (!existsSync(contentPath)) {
+    throw new Error(`Content CSV not found: ${contentPath}. Pass --content=<path> to override.`);
+  }
   const contentRows = parseContentCsv(contentPath);
-  const overviewRows = parseOverviewCsv(overviewPath);
+
+  let overviewRows: ReturnType<typeof parseOverviewCsv> = [];
+  if (existsSync(overviewPath)) {
+    overviewRows = parseOverviewCsv(overviewPath);
+  } else {
+    logger.warn(`Overview CSV not found: ${overviewPath} — period will be derived from content dates.`);
+  }
 
   // Period: prefer overview dates, fall back to content dates.
   const periodDates = (overviewRows.length > 0 ? overviewRows.map((r) => r.date) : contentRows.map((r) => r.postedDate));

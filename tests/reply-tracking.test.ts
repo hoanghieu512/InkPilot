@@ -420,4 +420,25 @@ describe('runReplyAnalyze orchestrator', () => {
     expect(res.enrichFailed).toBe(1);
     expect(getAllReplies(db)).toHaveLength(2);
   });
+
+  it('throws a clear error when the content CSV is missing', async () => {
+    await expect(
+      runReplyAnalyze({ contentPath: join(dir, 'nope.csv'), overviewPath: join(dir, 'nope2.csv'), enrichFn: async () => ({
+        replyCreatedAt: null, hour: null, parentTweetId: null,
+        parentImpressions: null, parentEngagements: null, parentAuthorHandle: null,
+      }), exportFn: () => 'X', db }),
+    ).rejects.toThrow(/Content CSV not found/);
+  });
+
+  it('degrades gracefully when the overview CSV is missing (period from content)', async () => {
+    const contentPath = writeContent();
+    const stubEnrich = async () => ({
+      replyCreatedAt: null, hour: null, parentTweetId: null,
+      parentImpressions: null, parentEngagements: null, parentAuthorHandle: null,
+    });
+    const res = await runReplyAnalyze({ contentPath, overviewPath: join(dir, 'missing-overview.csv'), enrichFn: stubEnrich, exportFn: () => 'X', db });
+    expect(res.snapshot.period.start).toBe('2026-06-05'); // from content rows (all dated Jun 5)
+    expect(res.snapshot.period.end).toBe('2026-06-05');
+    expect(res.snapshot.summary.replyCount).toBe(2);
+  });
 });
