@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
+import {
+  upsertReply,
+  updateReplyEnrichment,
+  getRepliesNeedingEnrichment,
+  getRepliesInPeriod,
+  getAllReplies,
+} from '../src/database/reply-tracking.js';
+import type { InsertReply } from '../src/database/reply-tracking.js';
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -118,5 +126,74 @@ describe('csv-parser', () => {
     rmSync(dir, { recursive: true, force: true });
 
     expect(rows.map((r) => r.postId)).toEqual(['444']); // blank-date row skipped, no throw
+  });
+});
+
+describe('reply-tracking db', () => {
+  let db: Database.Database;
+  beforeEach(() => { db = createTestDb(); });
+
+  const base: InsertReply = {
+    post_id: '111',
+    post_url: 'https://x.com/u/status/111',
+    posted_date: '2026-06-05',
+    post_text: '@samczsun nice',
+    kol_handle: '@samczsun',
+    niche: 'security',
+    impressions: 71,
+    engagements: 2,
+    new_follows: 1,
+  };
+
+  it('upserts a row and reads it back', () => {
+    upsertReply(base, db);
+    const rows = getAllReplies(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.post_id).toBe('111');
+    expect(rows[0]!.impressions).toBe(71);
+  });
+
+  it('is idempotent on post_id and updates changed metrics', () => {
+    upsertReply(base, db);
+    upsertReply({ ...base, impressions: 99 }, db);
+    const rows = getAllReplies(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.impressions).toBe(99);
+  });
+
+  it('preserves enrichment across a re-upsert of the same CSV row', () => {
+    upsertReply(base, db);
+    updateReplyEnrichment('111', {
+      replyCreatedAt: '2026-06-05T03:00:00.000Z',
+      hour: 10,
+      parentTweetId: '999',
+      parentImpressions: 5000,
+      parentEngagements: 120,
+      parentAuthorHandle: '@samczsun',
+    }, db);
+    upsertReply({ ...base, impressions: 99 }, db); // CSV re-run
+    const rows = getAllReplies(db);
+    expect(rows[0]!.parent_impressions).toBe(5000);
+    expect(rows[0]!.hour).toBe(10);
+    expect(rows[0]!.enriched_at).not.toBeNull();
+  });
+
+  it('getRepliesNeedingEnrichment returns only un-enriched rows', () => {
+    upsertReply(base, db);
+    upsertReply({ ...base, post_id: '222' }, db);
+    updateReplyEnrichment('111', {
+      replyCreatedAt: null, hour: 5, parentTweetId: null,
+      parentImpressions: null, parentEngagements: null, parentAuthorHandle: null,
+    }, db);
+    const pending = getRepliesNeedingEnrichment(db);
+    expect(pending.map((r) => r.post_id)).toEqual(['222']);
+  });
+
+  it('getRepliesInPeriod filters by posted_date inclusive', () => {
+    upsertReply({ ...base, post_id: 'a', posted_date: '2026-06-01' }, db);
+    upsertReply({ ...base, post_id: 'b', posted_date: '2026-06-07' }, db);
+    upsertReply({ ...base, post_id: 'c', posted_date: '2026-06-09' }, db);
+    const inPeriod = getRepliesInPeriod('2026-06-01', '2026-06-07', db);
+    expect(inPeriod.map((r) => r.post_id).sort()).toEqual(['a', 'b']);
   });
 });
