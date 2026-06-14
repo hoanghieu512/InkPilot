@@ -58,6 +58,7 @@ function indexHeaders(header: string[]): Record<string, number> {
   return idx;
 }
 
+// X Analytics exports raw integer counts (e.g. "1,234"), not ranges — strip separators and parse.
 function num(v: string | undefined): number {
   const n = parseInt((v ?? '').replace(/[^0-9-]/g, ''), 10);
   return isNaN(n) ? 0 : n;
@@ -77,6 +78,7 @@ export function parseContentCsv(filePath: string): ContentRow[] {
     const postId = (get(r, 'post id') ?? '').trim();
     if (!postId) continue;
     const rawDate = get(r, 'date') ?? '';
+    if (!rawDate) continue;
     const postText = get(r, 'post text') ?? '';
     const handle = extractKolHandle(postText);
     out.push({

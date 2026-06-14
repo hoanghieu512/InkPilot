@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runMigrations } from '../src/database/migrations.js';
 import { lookupNiche, NICHES } from '../src/config/kol-niches.js';
 import {
@@ -7,6 +10,7 @@ import {
   parseXDate,
   extractKolHandle,
   derivePeriod,
+  parseContentCsv,
 } from '../src/reply-tracking/csv-parser.js';
 
 function createTestDb(): Database.Database {
@@ -71,5 +75,48 @@ describe('csv-parser', () => {
     expect(p.start).toBe('2026-06-01');
     expect(p.end).toBe('2026-06-07');
     expect(p.label).toBe('Jun 1 – Jun 7, 2026');
+  });
+
+  it('parseContentCsv classifies replies vs originals and coerces numbers', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'inkpilot-csv-'));
+    const p = join(dir, 'content.csv');
+    writeFileSync(
+      p,
+      [
+        'Post id,Date,Post text,Post Link,Impressions,Engagements,New follows',
+        '111,"Fri, Jun 5, 2026","@samczsun nice",https://x.com/u/status/111,"1,234",2,1',
+        '222,"Fri, Jun 5, 2026","a normal original",https://x.com/u/status/222,500,15,4',
+        ',"Fri, Jun 5, 2026","row with no id — skipped",,0,0,0',
+      ].join('\n') + '\n',
+    );
+    const rows = parseContentCsv(p);
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(rows).toHaveLength(2); // empty-id row skipped
+    const reply = rows.find((r) => r.postId === '111')!;
+    expect(reply.isReply).toBe(true);
+    expect(reply.kolHandle).toBe('@samczsun');
+    expect(reply.impressions).toBe(1234); // comma stripped
+    expect(reply.postedDate).toBe('2026-06-05');
+    const original = rows.find((r) => r.postId === '222')!;
+    expect(original.isReply).toBe(false);
+    expect(original.kolHandle).toBeNull();
+  });
+
+  it('parseContentCsv skips a row with a valid id but blank date instead of throwing', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'inkpilot-csv-'));
+    const p = join(dir, 'content.csv');
+    writeFileSync(
+      p,
+      [
+        'Post id,Date,Post text,Post Link,Impressions,Engagements,New follows',
+        '333,,"orphan no date",,10,0,0',
+        '444,"Fri, Jun 5, 2026","valid",,20,1,0',
+      ].join('\n') + '\n',
+    );
+    const rows = parseContentCsv(p);
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(rows.map((r) => r.postId)).toEqual(['444']); // blank-date row skipped, no throw
   });
 });
