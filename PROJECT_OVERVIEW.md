@@ -118,7 +118,7 @@ flowchart TB
     AST["article-states.ts\ncreate · update"]
     FR["filter-results.ts\ninsert · isScored\ncacheBrief · getCachedBrief"]
     POSTS["posts.ts\ninsertPost · getByPlatform"]
-    SCHEMA["schema.ts\n7 tables"]
+    SCHEMA["schema.ts\n8 tables"]
   end
 
   subgraph Config["config/"]

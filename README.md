@@ -31,7 +31,8 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 - **Scoring diagnostic** — `npm run stats:scoring [--days=N]` in histogram 8 bucket (chia tại 7.5) + tỉ lệ HOT/OTHER/dismissed + breakdown theo Haiku category; không cần API key.
 - **Per-source diagnostic** — `npm run stats:sources [--days=N]` in bảng per-source: total scored, avg score, HOT/OTHER/dismissed counts, HOT%; không cần API key.
 - **Near-HOT inspector** — `npm run inspect:near-hot [--limit=N] [--days=N]` hiện 10 bài score 7–7.4 với full Haiku reasoning và suggested angle; dùng để diagnose threshold (hiện tại: 7.5).
-- **39 tests** — Vitest, in-memory SQLite; bao gồm dedup, seeding, states, mocked Anthropic (cả Haiku và Sonnet), fallback scoring, brief cache.
+- **Reply tracking (X analytics)** — `npm run reply:analyze` đọc 2 file CSV X Analytics, phân loại reply KOL vs original (reply = text bắt đầu `@`), tra niche từng KOL (`security`/`tokenomics`/`l1l2`/`other`), enrich qua TwitterAPI.io (giờ reply + imp/eng tweet gốc), tích lũy vào bảng `reply_tracking` (idempotent theo Post id), ghi snapshot JSON ra vault cho dashboard Newsroom. `--skip-enrich` chạy CSV-only (không tốn API); `--content=`/`--overview=` override path.
+- **71 tests** — Vitest, in-memory SQLite; bao gồm dedup, seeding, states, mocked Anthropic (cả Haiku và Sonnet), fallback scoring, brief cache, và reply tracking (CSV parser, niche lookup, DB idempotency, snapshot builder, orchestrator).
 
 ---
 
@@ -43,6 +44,7 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 | Database | SQLite via `better-sqlite3` (sync API) |
 | AI — Filter | Anthropic SDK — Claude Haiku (`claude-haiku-4-5-20251001`): batch relevance scoring |
 | AI — Brief | Anthropic SDK — Claude Sonnet (`claude-sonnet-4-6`): research brief generation |
+| Reply enrichment | TwitterAPI.io via native `fetch` (`TWITTERAPI_IO_KEY`) — parent-tweet metrics + reply hour |
 | RSS | `rss-parser` |
 | Config | `dotenv` + `.env`; `AI_MODELS` (`haiku` / `sonnet`) trong `src/config/index.ts` — đổi model một chỗ cho toàn app |
 | Test | Vitest |
@@ -218,6 +220,35 @@ npm run inspect:near-hot
 npm run inspect:near-hot -- --limit=20 --days=14
 ```
 
+### Reply tracking (X analytics)
+
+Phân tích reply KOL từ X Analytics CSV → enrich → snapshot JSON cho dashboard Newsroom.
+
+**One-time — credential:** thêm `TWITTERAPI_IO_KEY` vào `.env` (lấy key tại [twitterapi.io](https://twitterapi.io)).
+
+**Input:** export 2 file CSV từ X Analytics vào `~/Dev/vault/projects/content-creator/analytics/raw/`:
+- `content-latest.csv` (per-post: Post id, Date, Post text, Impressions, Engagements, New follows…)
+- `overview-latest.csv` (per-day topline)
+
+```bash
+# Đọc CSV → phân loại reply/original → tra niche → enrich (TwitterAPI.io) → reply_tracking → snapshot JSON
+npm run reply:analyze
+
+# CSV-only, không gọi API (không tốn tiền)
+npm run reply:analyze -- --skip-enrich
+
+# Override đường dẫn CSV
+npm run reply:analyze -- --content=/path/to/content.csv --overview=/path/to/overview.csv
+```
+
+Output: in summary terminal (reply count, imp share, dud rate, top KOLs, by-niche) và ghi snapshot vào `~/Dev/vault/projects/content-creator/analytics/reply-tracking/latest.json` (schema cố định — Newsroom đọc file này).
+
+- **Reply detection:** post text bắt đầu bằng `@` → reply; KOL = handle ngay sau `@` đầu tiên.
+- **Niche:** tra từ `src/config/kol-niches.ts` (`security`/`tokenomics`/`l1l2`/`other`; không có trong list → `other`). Sync tay từ vault `kol-reply-list.md`.
+- **Dud:** reply có impressions < 50.
+- **Idempotent:** chạy lại cùng CSV không nhân đôi row (key theo Post id); enrichment chỉ chạy 1 lần/row.
+- **Graceful:** thiếu `TWITTERAPI_IO_KEY` → báo lỗi rõ (hoặc dùng `--skip-enrich`); lỗi enrich 1 reply → skip + warn, không crash; thiếu content CSV → lỗi rõ; thiếu overview CSV → period suy từ content.
+
 ### Xem trạng thái nguồn
 
 ```bash
@@ -241,7 +272,7 @@ npm run sources:status
 ### Test
 
 ```bash
-npm test          # Chạy 39 tests
+npm test          # Chạy 71 tests
 npm run test:watch  # Watch mode
 ```
 
@@ -252,9 +283,10 @@ npm run test:watch  # Watch mode
 ```
 src/
 ├── config/
-│   ├── index.ts           # Load .env → Config; AI_MODELS (Haiku / Sonnet IDs)
+│   ├── index.ts           # Load .env → Config; AI_MODELS, SCORE_THRESHOLDS, REPLY_THRESHOLDS, requireTwitterApiIoKey
 │   ├── types.ts           # Config interface
-│   └── rss-sources.ts     # Source of truth: 11 feeds (6 enabled) × 4 tiers
+│   ├── rss-sources.ts     # Source of truth: 16 feeds (9 enabled) × 4 tiers
+│   └── kol-niches.ts      # KOL handle → niche map (lookupNiche); synced by hand from vault kol-reply-list.md
 ├── content-filter/
 │   ├── index.ts           # filterNewArticles orchestrator (batch + state update)
 │   ├── haiku-filter.ts    # Anthropic SDK — scoreArticles (batch 10, cost tracking)
@@ -267,18 +299,26 @@ src/
 │   └── types.ts           # Brief, RelatedArticle, SuggestedAngles
 ├── database/
 │   ├── index.ts           # Singleton DB connection (WAL, foreign keys)
-│   ├── schema.ts          # CREATE TABLE × 7 + indexes
+│   ├── schema.ts          # CREATE TABLE × 8 + indexes
 │   ├── migrations.ts      # Run schema + auto-migrate old tables
 │   ├── types.ts           # ArticleState, Source, Article, ArticleStateRow
 │   ├── sources.ts         # seedSources (upsert), getEnabledSources, getSourceBySlug
 │   ├── articles.ts        # insertArticle (dedup), getArticlesWithFilter
 │   ├── article-states.ts  # createArticleState, updateArticleState
 │   ├── filter-results.ts  # insertFilterResult, isArticleScored, cacheArticleBrief, getCachedBrief
-│   └── posts.ts           # insertPost, getPostsByPlatform, countTodayPosts
+│   ├── posts.ts           # insertPost, getPostsByPlatform, countTodayPosts
+│   └── reply-tracking.ts  # upsertReply (idempotent), updateReplyEnrichment, getReplies* queries
 ├── feed-fetcher/
 │   ├── index.ts           # runFetch orchestrator (parallel + OG + scoring)
 │   ├── rss-parser.ts      # fetchFeed → FeedItem[]
 │   └── og-extractor.ts    # extractOgImageUrl → string | null
+├── reply-tracking/
+│   ├── index.ts           # runReplyAnalyze orchestrator (parse → upsert → enrich → snapshot)
+│   ├── csv-parser.ts      # parseCsv (RFC-4180), parseContentCsv/parseOverviewCsv, parseXDate, extractKolHandle, derivePeriod
+│   ├── snapshot-builder.ts # buildSnapshot (pure) → Newsroom contract; weekStart, nowIsoPlus7
+│   ├── enricher.ts        # enrichReply (TwitterAPI.io); mapTweet, computeHourPlus7
+│   ├── exporter.ts        # exportSnapshot → vault reply-tracking/latest.json
+│   └── types.ts           # ContentRow, OverviewRow, Period, ReplyEnrichment, ReplySnapshot
 ├── scripts/
 │   ├── fetch.ts           # CLI: npm run fetch [--verbose]
 │   ├── list.ts            # CLI: npm run list (tiered inbox, --days=N)
@@ -286,7 +326,8 @@ src/
 │   ├── sources-status.ts  # CLI: npm run sources:status (per-source health table)
 │   ├── stats-scoring.ts   # CLI: npm run stats:scoring [--days=N] (histogram + categories)
 │   ├── stats-sources.ts   # CLI: npm run stats:sources [--days=N] (per-source HOT rate)
-│   └── inspect-near-hot.ts # CLI: npm run inspect:near-hot (score 7–7.4 + full reasoning)
+│   ├── inspect-near-hot.ts # CLI: npm run inspect:near-hot (score 7–7.4 + full reasoning)
+│   └── reply-analyze.ts   # CLI: npm run reply:analyze [--skip-enrich] [--content=] [--overview=]
 └── utils/
     └── logger.ts          # Leveled, colored console logging
 templates/
@@ -295,7 +336,8 @@ tests/
 ├── database.test.ts       # 8 tests: schema, posts CRUD
 ├── feed-fetcher.test.ts   # 14 tests: sources, articles, states, mocked fetch
 ├── content-filter.test.ts # 10 tests: filter DB, scoring, mocked Anthropic, fallback
-└── research-briefer.test.ts # 7 tests: cache, related query, mocked Sonnet, fallback
+├── research-briefer.test.ts # 7 tests: cache, related query, mocked Sonnet, fallback
+└── reply-tracking.test.ts  # 32 tests: niche lookup, CSV parser, DB idempotency, snapshot builder, enricher, orchestrator
 ```
 
 ---
@@ -371,8 +413,10 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **v0.4.1** — HOT threshold 8.0 → 7.5, fixed 12-category Haiku enum, recency filter bug fix
 - [x] **v0.4.2** — List footer shows `"X of Y"` total count when limit is hit; refactored `list.ts` condition builder
 - [x] **v0.4.3** — Haiku niche priority stack (Security > Tokenomics > L1/L2 Infra); fix process hang on fetch/brief completion
+- [x] **v0.5.0** — Reply Tracking: `reply_tracking` table + `npm run reply:analyze` (X Analytics CSV → KOL niche → TwitterAPI.io enrichment → snapshot JSON for Newsroom); `kol-niches.ts` config; `TWITTERAPI_IO_KEY`
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
+- [ ] **Future** — realtime Reply Monitor (builds on the `reply_tracking` data layer)
 
 ---
 
@@ -389,6 +433,9 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 | `Article #X has not been scored yet` | Chạy `npm run fetch` để score article trước khi tạo brief |
 | Brief hiện "(cached — no API call)" | Bình thường — brief đã cache; `npm run brief -- <id> --refresh` để gọi lại Sonnet |
 | `Could not save angle file` / template not found | Copy `templates/angle-template.md` → `~/Dev/vault/templates/angle-template.md`; thư mục output được tạo tự động |
+| `Missing required env var: TWITTERAPI_IO_KEY` | Điền `TWITTERAPI_IO_KEY` trong `.env` (lấy tại twitterapi.io), hoặc chạy `npm run reply:analyze -- --skip-enrich` để bỏ qua enrich |
+| `Content CSV not found` | Export `content-latest.csv` vào `~/Dev/vault/projects/content-creator/analytics/raw/`, hoặc dùng `--content=PATH` |
+| `reply:analyze` enrich báo "failed: N" | Bình thường — lỗi API 1 reply được skip + warn, các reply khác vẫn enrich; `byHour`/`parentSizeCorrelation` chỉ tính từ reply enrich thành công |
 | DB migration log | Lần đầu chạy sau update sẽ thấy migration log — bình thường, tự xử lý |
 
 ---
