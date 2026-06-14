@@ -76,7 +76,7 @@ npm test                         # vitest run — 71 tests, in-memory SQLite
 
 After each implementation, run in order:
 
-1. `npm test` — all 39 tests must pass
+1. `npm test` — all 71 tests must pass
 2. `tsc --noEmit` — must pass clean before bumping version
 3. Bump `"version"` in `package.json`
 4. Update `## Current version:` in `CLAUDE.md`
