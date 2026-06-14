@@ -41,9 +41,14 @@ export function buildSnapshot(
   period: Period,
   generatedAt: string,
 ): ReplySnapshot {
-  // --- summary (from content CSV) ---
-  const replies = contentRows.filter((r) => r.isReply);
-  const originals = contentRows.filter((r) => !r.isReply);
+  // --- summary (from content CSV, scoped to the period — the latest week) ---
+  // The CSV spans ~28 days; summary must reflect only the period so its numbers
+  // reconcile with byKol/byNiche/byHour (which are already period-scoped DB rows).
+  const periodContent = contentRows.filter(
+    (r) => r.postedDate >= period.start && r.postedDate <= period.end,
+  );
+  const replies = periodContent.filter((r) => r.isReply);
+  const originals = periodContent.filter((r) => !r.isReply);
   const sumReplyImp = replies.reduce((s, r) => s + r.impressions, 0);
   const sumOrigImp = originals.reduce((s, r) => s + r.impressions, 0);
   const totalImp = sumReplyImp + sumOrigImp;

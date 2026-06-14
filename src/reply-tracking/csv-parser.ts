@@ -127,13 +127,25 @@ function formatLabel(start: string, end: string): string {
   return `${MONTH_ABBR[sm - 1]} ${sd} – ${MONTH_ABBR[em - 1]} ${ed}, ${ey}`;
 }
 
+function addDaysIso(iso: string, delta: number): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The reporting period is the latest week in the CSV: a 7-day window (inclusive)
+ * ending at the max date. X Analytics CSVs export ~28 days, but summary/byKol/
+ * byNiche/byHour must reflect only the most recent week — so we scope to it here.
+ * (weeklyTrend is the one block that spans all accumulated DB rows, not this period.)
+ */
 export function derivePeriod(dates: string[]): Period {
   const sorted = dates.filter(Boolean).slice().sort();
   if (sorted.length === 0) {
     const today = new Date().toISOString().slice(0, 10);
     return { start: today, end: today, label: formatLabel(today, today) };
   }
-  const start = sorted[0]!;
   const end = sorted[sorted.length - 1]!;
+  const start = addDaysIso(end, -6);
   return { start, end, label: formatLabel(start, end) };
 }

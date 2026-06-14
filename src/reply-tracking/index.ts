@@ -11,7 +11,7 @@ import { buildSnapshot, nowIsoPlus7 } from './snapshot-builder.js';
 import { enrichReply } from './enricher.js';
 import { exportSnapshot } from './exporter.js';
 import {
-  upsertReply, updateReplyEnrichment, getRepliesNeedingEnrichment,
+  upsertReply, updateReplyEnrichment, getRepliesNeedingEnrichmentInPeriod,
   getRepliesInPeriod, getAllReplies,
 } from '../database/reply-tracking.js';
 import type { EnrichFn, ReplySnapshot } from './types.js';
@@ -78,11 +78,13 @@ export async function runReplyAnalyze(opts: RunReplyAnalyzeOptions = {}): Promis
   }
   logger.info(`Stored/updated ${replyRows.length} replies (${contentRows.length - replyRows.length} originals skipped)`);
 
-  // Enrich only rows that have never been enriched.
+  // Enrich only un-enriched replies inside the period (the latest week). Older weeks
+  // stay in the DB for weeklyTrend but are never re-fetched — keeps API calls bounded
+  // and idempotent across re-runs.
   let enriched = 0;
   let enrichFailed = 0;
   if (!opts.skipEnrich) {
-    const pending = getRepliesNeedingEnrichment(db);
+    const pending = getRepliesNeedingEnrichmentInPeriod(period.start, period.end, db);
     for (const row of pending) {
       try {
         const e = await enrichFn(row.post_id);

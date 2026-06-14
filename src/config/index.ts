@@ -28,6 +28,17 @@ export function requireTwitterApiIoKey(): string {
   return key;
 }
 
+/**
+ * Max TwitterAPI.io requests/second for enrichment. Read from `TWITTERAPI_IO_QPS`.
+ * Default is conservative (10) so a balance/QPS drop never overruns the limit;
+ * raise it in .env if your account allows more. Never hardcode at the call site.
+ */
+export function getTwitterApiIoQps(): number {
+  const raw = process.env['TWITTERAPI_IO_QPS'];
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 10;
+}
+
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
 
 function resolveDbPath(raw: string): string {
