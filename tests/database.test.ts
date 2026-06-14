@@ -24,7 +24,7 @@ describe('Database', () => {
     testDb.close();
   });
 
-  it('creates all 7 tables', () => {
+  it('creates all 8 tables', () => {
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
       .all() as Array<{ name: string }>;
@@ -38,9 +38,10 @@ describe('Database', () => {
       'filter_results',
       'post_metrics',
       'posts',
+      'reply_tracking',
       'sources',
     ]);
-    expect(tables).toHaveLength(7);
+    expect(tables).toHaveLength(8);
   });
 
   it('insertPost returns a Post with id', () => {
