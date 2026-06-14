@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-06-14
+### Added
+- **`reply_tracking` table** (ADD 1): new SQLite table that accumulates KOL-reply history across weeks, keyed by reply tweet id (`post_id`, UNIQUE); idempotent — re-running the same CSV updates metrics without duplicating rows, and the `ON CONFLICT` clause preserves enrichment columns; separate from `posts`/`post_metrics`
+- **`npm run reply:analyze`** (ADD 2): reads two X Analytics CSV exports (`content-latest.csv` + `overview-latest.csv`), classifies each post as a KOL reply (text starts with `@`) vs original, looks up the KOL's niche, enriches each reply via TwitterAPI.io (reply hour-of-day + parent-tweet impressions/engagements as a proxy for wave size), stores rows in `reply_tracking`, prints a terminal summary, and writes a fixed-schema JSON snapshot to `~/Dev/vault/projects/content-creator/analytics/reply-tracking/latest.json` for the Newsroom dashboard; flags: `--skip-enrich` (CSV-only, no API spend), `--content=PATH`, `--overview=PATH`; enrichment is idempotent (only un-enriched rows call the API) and per-reply failures are isolated (logged, counted, non-fatal); missing content CSV → clear error, missing overview CSV → graceful fallback to content dates for the period
+- **KOL→niche config** (ADD 3): `src/config/kol-niches.ts` maps X handles to one of `security | tokenomics | l1l2 | other` (unknown → `other`), synced by hand from the vault `kol-reply-list.md`, following the `rss-sources.ts` source-of-truth pattern
+- **`TWITTERAPI_IO_KEY` env var** (ADD 4): new credential for TwitterAPI.io reply enrichment; added to `.env.example`; `requireTwitterApiIoKey()` in `src/config/index.ts` fails fast with a clear message when missing (unless `--skip-enrich`)
+
 ## [0.4.3] - 2026-05-19
 ### Fixed
 - **`npm run fetch` hung after completion** (FIX 1): Anthropic SDK keeps HTTP keep-alive connections alive, preventing Node.js from exiting after `main()` resolved; added `.then(() => process.exit(0))` to `scripts/fetch.ts` and `scripts/brief.ts`; non-zero exits unchanged — `.catch` still calls `process.exit(1)`

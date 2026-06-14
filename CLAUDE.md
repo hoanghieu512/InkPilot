@@ -14,11 +14,14 @@ npm run list -- --all            # all including dismissed
 npm run list -- --days=7         # recency filter (default 30)
 npm run brief <id>               # Sonnet brief → cache → export angle .md
 npm run brief -- <id> --refresh  # skip cache, regenerate + overwrite
+npm run reply:analyze            # X Analytics CSVs → enrich (TwitterAPI.io) → reply_tracking → snapshot JSON
+npm run reply:analyze -- --skip-enrich           # CSV-only, no API spend
+npm run reply:analyze -- --content=PATH --overview=PATH   # override CSV paths
 npm run sources:status           # per-source health table (no API key needed)
 npm run stats:scoring            # scoring histogram + HOT/OTHER/dismissed ratio (--days=N)
 npm run stats:sources            # per-source HOT rate table (--days=N)
 npm run inspect:near-hot         # score 7–7.4 articles + full Haiku reasoning (--limit=N --days=N)
-npm test                         # vitest run — 39 tests, in-memory SQLite
+npm test                         # vitest run — 71 tests, in-memory SQLite
 ```
 
 ## Architecture essentials
@@ -52,8 +55,10 @@ npm test                         # vitest run — 39 tests, in-memory SQLite
 | `src/database/sources.ts` | `seedSources`, `getEnabledSources`, `getSourcesStatus` |
 | `src/database/filter-results.ts` | `isArticleScored`, `cacheArticleBrief`, `getCachedBrief` |
 | `src/database/index.ts` | `initDb` / `getDb` / `resetDb` (tests use `resetDb`) |
+| `src/reply-tracking/index.ts` | `runReplyAnalyze` orchestrator — CSV → enrich → reply_tracking → snapshot |
+| `src/config/kol-niches.ts` | KOL handle→niche map (synced by hand from vault `kol-reply-list.md`) |
 
-## Current version: v0.4.3
+## Current version: v0.5.0
 
 ## Current state
 
@@ -64,6 +69,8 @@ npm test                         # vitest run — 39 tests, in-memory SQLite
 **User context files** read at runtime from `~/Dev/projects/Content-Creator/about-me.md` and `tone-guidelines.md`. Missing files → graceful fallback, brief still generated.
 
 **Vault template** at `~/Dev/vault/templates/angle-template.md` — uses `__KEY__` placeholders (not `{{}}`, YAML-safe). Output goes to `~/Dev/vault/projects/content-creator/angles/YYYY-MM-DD-<id>-<slug>.md`.
+
+**Reply tracking** added in v0.5.0. `reply_tracking` table accumulates KOL-reply history across weeks, keyed by reply tweet id (`post_id`, UNIQUE) — re-running the same CSV is idempotent. `npm run reply:analyze` reads X Analytics CSVs from `~/Dev/vault/projects/content-creator/analytics/raw/{content,overview}-latest.csv`, enriches via TwitterAPI.io (`TWITTERAPI_IO_KEY`), and writes a fixed-schema snapshot to `~/Dev/vault/projects/content-creator/analytics/reply-tracking/latest.json` for the Newsroom dashboard. KOL→niche config lives in `src/config/kol-niches.ts` (niches: `security|tokenomics|l1l2|other`; unknown handles → `other`).
 
 ## Release workflow
 
@@ -81,7 +88,7 @@ After each implementation, run in order:
 
 ## Test conventions
 
-Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 4 test files in `tests/`, all 39 tests must pass before any PR.
+Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 5 test files in `tests/`, all 71 tests must pass before any PR.
 
 ## Don't
 
