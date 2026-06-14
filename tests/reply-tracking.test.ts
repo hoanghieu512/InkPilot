@@ -20,6 +20,9 @@ import {
   derivePeriod,
   parseContentCsv,
 } from '../src/reply-tracking/csv-parser.js';
+import { buildSnapshot, weekStart, nowIsoPlus7 } from '../src/reply-tracking/snapshot-builder.js';
+import type { ContentRow } from '../src/reply-tracking/types.js';
+import type { ReplyRow } from '../src/database/reply-tracking.js';
 
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -195,5 +198,114 @@ describe('reply-tracking db', () => {
     upsertReply({ ...base, post_id: 'c', posted_date: '2026-06-09' }, db);
     const inPeriod = getRepliesInPeriod('2026-06-01', '2026-06-07', db);
     expect(inPeriod.map((r) => r.post_id).sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('snapshot-builder helpers', () => {
+  it('weekStart returns the Monday of the week', () => {
+    expect(weekStart('2026-06-07')).toBe('2026-06-01'); // Sun → prior Mon
+    expect(weekStart('2026-06-01')).toBe('2026-06-01'); // Mon → itself
+    expect(weekStart('2026-06-03')).toBe('2026-06-01'); // Wed → Mon
+  });
+
+  it('nowIsoPlus7 emits a +07:00 offset', () => {
+    const s = nowIsoPlus7(new Date('2026-06-14T00:00:00.000Z'));
+    expect(s).toBe('2026-06-14T07:00:00.000+07:00');
+  });
+});
+
+describe('buildSnapshot', () => {
+  const period = { start: '2026-06-01', end: '2026-06-07', label: 'Jun 1 – Jun 7, 2026' };
+
+  function content(over: Partial<ContentRow>): ContentRow {
+    return {
+      postId: 'x', rawDate: '', postedDate: '2026-06-05', postText: '', postLink: '',
+      impressions: 0, engagements: 0, newFollows: 0, isReply: false, kolHandle: null,
+      ...over,
+    };
+  }
+  function reply(over: Partial<ReplyRow>): ReplyRow {
+    return {
+      id: 1, post_id: 'x', post_url: null, posted_date: '2026-06-05', post_text: null,
+      kol_handle: '@samczsun', niche: 'security', impressions: 100, engagements: 2, new_follows: 1,
+      parent_tweet_id: null, parent_impressions: null, parent_engagements: null,
+      reply_created_at: null, hour: null, enriched_at: null,
+      created_at: '', updated_at: '', ...over,
+    };
+  }
+
+  it('computes summary from content rows', () => {
+    const rows = [
+      content({ isReply: true, impressions: 100, newFollows: 2 }),
+      content({ isReply: true, impressions: 40, newFollows: 0 }), // dud
+      content({ isReply: false, impressions: 60, newFollows: 5 }),
+    ];
+    const snap = buildSnapshot(rows, [], [], period, 'NOW');
+    expect(snap.summary.replyCount).toBe(2);
+    expect(snap.summary.originalCount).toBe(1);
+    expect(snap.summary.dudRate).toBe(0.5);
+    expect(snap.summary.avgImpPerReply).toBe(70);
+    expect(snap.summary.avgImpPerOriginal).toBe(60);
+    expect(snap.summary.newFollowsFromReply).toBe(2);
+    expect(snap.summary.newFollowsFromOriginal).toBe(5);
+    expect(snap.summary.replyImpShare).toBe(0.7); // 140 / 200
+  });
+
+  it('byNiche always lists all 4 niches in fixed order', () => {
+    const snap = buildSnapshot([], [reply({ niche: 'security' })], [], period, 'NOW');
+    expect(snap.byNiche.map((n) => n.niche)).toEqual(['security', 'tokenomics', 'l1l2', 'other']);
+    expect(snap.byNiche[0]!.replies).toBe(1);
+    expect(snap.byNiche[1]!.replies).toBe(0);
+  });
+
+  it('byKol is sorted by totalImp descending', () => {
+    const replies = [
+      reply({ post_id: 'a', kol_handle: '@low', impressions: 10 }),
+      reply({ post_id: 'b', kol_handle: '@high', impressions: 500 }),
+      reply({ post_id: 'c', kol_handle: '@high', impressions: 100 }),
+    ];
+    const snap = buildSnapshot([], replies, [], period, 'NOW');
+    expect(snap.byKol[0]!.handle).toBe('@high');
+    expect(snap.byKol[0]!.totalImp).toBe(600);
+    expect(snap.byKol[0]!.replies).toBe(2);
+    expect(snap.byKol[0]!.avgImp).toBe(300);
+    expect(snap.byKol[1]!.handle).toBe('@low');
+  });
+
+  it('parentSizeCorrelation buckets by parent impressions', () => {
+    const replies = [
+      reply({ post_id: 'a', parent_impressions: 500, impressions: 10 }),
+      reply({ post_id: 'b', parent_impressions: 5000, impressions: 30 }),
+      reply({ post_id: 'c', parent_impressions: 50000, impressions: 90 }),
+    ];
+    const snap = buildSnapshot([], replies, [], period, 'NOW');
+    const bands = Object.fromEntries(snap.parentSizeCorrelation.buckets.map((b) => [b.parentImpBand, b]));
+    expect(bands['<1k']!.replies).toBe(1);
+    expect(bands['1k-10k']!.replies).toBe(1);
+    expect(bands['>10k']!.replies).toBe(1);
+    expect(bands['>10k']!.avgReplyImp).toBe(90);
+  });
+
+  it('byHour groups enriched rows by hour', () => {
+    const replies = [
+      reply({ post_id: 'a', hour: 9, impressions: 100 }),
+      reply({ post_id: 'b', hour: 9, impressions: 200 }),
+      reply({ post_id: 'c', hour: null, impressions: 999 }), // excluded
+    ];
+    const snap = buildSnapshot([], replies, [], period, 'NOW');
+    expect(snap.byHour).toEqual([{ hour: 9, replies: 2, avgImp: 150 }]);
+  });
+
+  it('weeklyTrend groups all rows by week', () => {
+    const all = [
+      reply({ post_id: 'a', posted_date: '2026-06-01', impressions: 100 }),
+      reply({ post_id: 'b', posted_date: '2026-06-03', impressions: 200 }),
+      reply({ post_id: 'c', posted_date: '2026-06-08', impressions: 300 }),
+    ];
+    const snap = buildSnapshot([], [], all, period, 'NOW');
+    expect(snap.weeklyTrend).toEqual([
+      { week: '2026-06-01', avgImpPerReply: 150 },
+      { week: '2026-06-08', avgImpPerReply: 300 },
+    ]);
   });
 });

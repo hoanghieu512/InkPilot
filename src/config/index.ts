@@ -49,4 +49,8 @@ export const SCORE_THRESHOLDS = {
   OTHER_MIN: 6.0, // score >= OTHER_MIN → shown in OTHER tier; below → auto-dismissed
 } as const;
 
+export const REPLY_THRESHOLDS = {
+  DUD_IMPRESSIONS: 50, // reply with impressions < this is a "dud"
+} as const;
+
 export type { Config };
