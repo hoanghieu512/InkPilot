@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../src/database/migrations.js';
 import { lookupNiche, NICHES } from '../src/config/kol-niches.js';
+import {
+  parseCsv,
+  parseXDate,
+  extractKolHandle,
+  derivePeriod,
+} from '../src/reply-tracking/csv-parser.js';
 
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -31,5 +37,39 @@ describe('kol-niches', () => {
 
   it('exposes exactly the 4 niches', () => {
     expect([...NICHES]).toEqual(['security', 'tokenomics', 'l1l2', 'other']);
+  });
+});
+
+describe('csv-parser', () => {
+  it('parseCsv handles quoted fields with commas and escaped quotes', () => {
+    const text = 'a,b,c\n1,"hello, world","say ""hi"""\n';
+    const rows = parseCsv(text);
+    expect(rows[0]).toEqual(['a', 'b', 'c']);
+    expect(rows[1]).toEqual(['1', 'hello, world', 'say "hi"']);
+  });
+
+  it('parseCsv handles newlines inside quoted fields', () => {
+    const text = 'a,b\n"line1\nline2",x\n';
+    const rows = parseCsv(text);
+    expect(rows[1]).toEqual(['line1\nline2', 'x']);
+  });
+
+  it('parseXDate converts X date format to ISO', () => {
+    expect(parseXDate('Sun, Jun 7, 2026')).toBe('2026-06-07');
+    expect(parseXDate('Mon, Jun 1, 2026')).toBe('2026-06-01');
+  });
+
+  it('extractKolHandle returns handle for replies, null for originals', () => {
+    expect(extractKolHandle('@5phutcrypto_ Vẫn đang chờ')).toBe('@5phutcrypto_');
+    expect(extractKolHandle('@samczsun great point')).toBe('@samczsun');
+    expect(extractKolHandle('Nay tối chủ nhật nên có vài dòng')).toBeNull();
+    expect(extractKolHandle('  @spaced handle')).toBe('@spaced');
+  });
+
+  it('derivePeriod returns min/max and a label', () => {
+    const p = derivePeriod(['2026-06-07', '2026-06-01', '2026-06-05']);
+    expect(p.start).toBe('2026-06-01');
+    expect(p.end).toBe('2026-06-07');
+    expect(p.label).toBe('Jun 1 – Jun 7, 2026');
   });
 });
