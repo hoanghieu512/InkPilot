@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-06-14
+### Fixed
+- **`summary` now scoped to the period, not the whole CSV** (FIX 1): X Analytics CSVs export ~28 days, but `summary` was aggregating every row (e.g. 224 replies) while `period.label` + `byKol`/`byNiche`/`byHour` showed only the latest week (e.g. 34) — so the Newsroom dashboard read "this week: 224 replies" wrongly. `derivePeriod` now returns a 7-day window ending at the max CSV date (the latest week), and `buildSnapshot` filters content rows to that window before computing `summary`. `summary.replyCount` now reconciles with the sum of `byNiche.replies`. `weeklyTrend` is unchanged — still computed across all accumulated DB rows (the only cross-week block).
+- **Enrichment scoped to the period + idempotent** (FIX 2): v0.5.0 enriched all ~236 replies (28 days) on every run, re-fetching already-enriched rows and burning API calls. New `getRepliesNeedingEnrichmentInPeriod` makes `reply:analyze` enrich only un-enriched replies inside the latest week; older weeks stay in the DB (for `weeklyTrend`) but are never re-fetched. Re-running the same CSV makes no API calls.
+- **Throttle + 429 backoff so enrichment completes** (FIX 3): firing faster than the account QPS caused most enrich calls to 429, leaving `parentSizeCorrelation` + `byHour` empty. The enricher is now built via `createEnricher` with a shared rate limiter (spaces requests to `TWITTERAPI_IO_QPS`, default 10, read from config — never hardcoded) and retries 429s with exponential backoff honoring `Retry-After`. New env var `TWITTERAPI_IO_QPS` in `.env.example`.
+
 ## [0.5.0] - 2026-06-14
 ### Added
 - **`reply_tracking` table** (ADD 1): new SQLite table that accumulates KOL-reply history across weeks, keyed by reply tweet id (`post_id`, UNIQUE); idempotent — re-running the same CSV updates metrics without duplicating rows, and the `ON CONFLICT` clause preserves enrichment columns; separate from `posts`/`post_metrics`

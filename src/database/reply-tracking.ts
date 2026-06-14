@@ -99,6 +99,20 @@ export function getRepliesNeedingEnrichment(db?: Database.Database): ReplyRow[] 
     .all() as ReplyRow[];
 }
 
+/** Un-enriched replies inside [start, end] — the only rows worth an API call this run. */
+export function getRepliesNeedingEnrichmentInPeriod(
+  start: string,
+  end: string,
+  db?: Database.Database,
+): ReplyRow[] {
+  const conn = db ?? getDb();
+  return conn
+    .prepare(
+      'SELECT * FROM reply_tracking WHERE enriched_at IS NULL AND posted_date BETWEEN ? AND ? ORDER BY posted_date',
+    )
+    .all(start, end) as ReplyRow[];
+}
+
 export function getRepliesInPeriod(start: string, end: string, db?: Database.Database): ReplyRow[] {
   const conn = db ?? getDb();
   return conn

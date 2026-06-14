@@ -21,7 +21,7 @@ npm run sources:status           # per-source health table (no API key needed)
 npm run stats:scoring            # scoring histogram + HOT/OTHER/dismissed ratio (--days=N)
 npm run stats:sources            # per-source HOT rate table (--days=N)
 npm run inspect:near-hot         # score 7–7.4 articles + full Haiku reasoning (--limit=N --days=N)
-npm test                         # vitest run — 71 tests, in-memory SQLite
+npm test                         # vitest run — 78 tests, in-memory SQLite
 ```
 
 ## Architecture essentials
@@ -58,7 +58,7 @@ npm test                         # vitest run — 71 tests, in-memory SQLite
 | `src/reply-tracking/index.ts` | `runReplyAnalyze` orchestrator — CSV → enrich → reply_tracking → snapshot |
 | `src/config/kol-niches.ts` | KOL handle→niche map (synced by hand from vault `kol-reply-list.md`) |
 
-## Current version: v0.5.0
+## Current version: v0.5.1
 
 ## Current state
 
@@ -70,13 +70,15 @@ npm test                         # vitest run — 71 tests, in-memory SQLite
 
 **Vault template** at `~/Dev/vault/templates/angle-template.md` — uses `__KEY__` placeholders (not `{{}}`, YAML-safe). Output goes to `~/Dev/vault/projects/content-creator/angles/YYYY-MM-DD-<id>-<slug>.md`.
 
-**Reply tracking** added in v0.5.0. `reply_tracking` table accumulates KOL-reply history across weeks, keyed by reply tweet id (`post_id`, UNIQUE) — re-running the same CSV is idempotent. `npm run reply:analyze` reads X Analytics CSVs from `~/Dev/vault/projects/content-creator/analytics/raw/{content,overview}-latest.csv`, enriches via TwitterAPI.io (`TWITTERAPI_IO_KEY`), and writes a fixed-schema snapshot to `~/Dev/vault/projects/content-creator/analytics/reply-tracking/latest.json` for the Newsroom dashboard. KOL→niche config lives in `src/config/kol-niches.ts` (niches: `security|tokenomics|l1l2|other`; unknown handles → `other`).
+**Reply tracking** added in v0.5.0 (scope + enrichment hardened in v0.5.1). `reply_tracking` table accumulates KOL-reply history across weeks, keyed by reply tweet id (`post_id`, UNIQUE) — re-running the same CSV is idempotent. `npm run reply:analyze` reads X Analytics CSVs from `~/Dev/vault/projects/content-creator/analytics/raw/{content,overview}-latest.csv`, enriches via TwitterAPI.io (`TWITTERAPI_IO_KEY`), and writes a fixed-schema snapshot to `~/Dev/vault/projects/content-creator/analytics/reply-tracking/latest.json` for the Newsroom dashboard. KOL→niche config lives in `src/config/kol-niches.ts` (niches: `security|tokenomics|l1l2|other`; unknown handles → `other`).
+
+**Period = latest week.** `derivePeriod` returns a 7-day window ending at the CSV's max date (CSVs export ~28 days). `summary` + `byKol`/`byNiche`/`byHour` are all scoped to this period and reconcile (`summary.replyCount` == sum of `byNiche.replies`). `weeklyTrend` is the only block that spans all accumulated DB rows. Enrichment is scoped + idempotent: only un-enriched replies *inside the period* call the API (`getRepliesNeedingEnrichmentInPeriod`); older weeks stay in the DB but are never re-fetched. The enricher (`createEnricher` in `enricher.ts`) throttles to `TWITTERAPI_IO_QPS` (default 10, from config — never hardcode) and retries 429s with exponential backoff (honoring `Retry-After`).
 
 ## Release workflow
 
 After each implementation, run in order:
 
-1. `npm test` — all 71 tests must pass
+1. `npm test` — all 78 tests must pass
 2. `tsc --noEmit` — must pass clean before bumping version
 3. Bump `"version"` in `package.json`
 4. Update `## Current version:` in `CLAUDE.md`
@@ -88,7 +90,7 @@ After each implementation, run in order:
 
 ## Test conventions
 
-Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 5 test files in `tests/`, all 71 tests must pass before any PR.
+Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 5 test files in `tests/`, all 78 tests must pass before any PR.
 
 ## Don't
 

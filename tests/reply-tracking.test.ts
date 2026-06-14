@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mapTweet, computeHourPlus7 } from '../src/reply-tracking/enricher.js';
+import { mapTweet, computeHourPlus7, nextBackoffMs, createEnricher } from '../src/reply-tracking/enricher.js';
 import Database from 'better-sqlite3';
 import {
   upsertReply,
   updateReplyEnrichment,
   getRepliesNeedingEnrichment,
+  getRepliesNeedingEnrichmentInPeriod,
   getRepliesInPeriod,
   getAllReplies,
 } from '../src/database/reply-tracking.js';
@@ -83,11 +84,19 @@ describe('csv-parser', () => {
     expect(extractKolHandle('  @spaced handle')).toBe('@spaced');
   });
 
-  it('derivePeriod returns min/max and a label', () => {
+  it('derivePeriod returns a 7-day window ending at the max date', () => {
     const p = derivePeriod(['2026-06-07', '2026-06-01', '2026-06-05']);
-    expect(p.start).toBe('2026-06-01');
     expect(p.end).toBe('2026-06-07');
+    expect(p.start).toBe('2026-06-01'); // end - 6 days
     expect(p.label).toBe('Jun 1 – Jun 7, 2026');
+  });
+
+  it('derivePeriod scopes to the latest week even when CSV spans 28 days', () => {
+    const dates = ['2026-05-18', '2026-05-25', '2026-06-08', '2026-06-14'];
+    const p = derivePeriod(dates);
+    expect(p.end).toBe('2026-06-14');
+    expect(p.start).toBe('2026-06-08'); // Jun 14 - 6 days, NOT May 18
+    expect(p.label).toBe('Jun 8 – Jun 14, 2026');
   });
 
   it('parseContentCsv classifies replies vs originals and coerces numbers', () => {
@@ -201,6 +210,18 @@ describe('reply-tracking db', () => {
     const inPeriod = getRepliesInPeriod('2026-06-01', '2026-06-07', db);
     expect(inPeriod.map((r) => r.post_id).sort()).toEqual(['a', 'b']);
   });
+
+  it('getRepliesNeedingEnrichmentInPeriod returns only un-enriched rows inside the period', () => {
+    upsertReply({ ...base, post_id: 'old', posted_date: '2026-05-20' }, db);  // out of period, un-enriched
+    upsertReply({ ...base, post_id: 'in1', posted_date: '2026-06-05' }, db);  // in period, un-enriched
+    upsertReply({ ...base, post_id: 'in2', posted_date: '2026-06-06' }, db);  // in period, will enrich
+    updateReplyEnrichment('in2', {
+      replyCreatedAt: '2026-06-06T00:00:00.000Z', hour: 7, parentTweetId: 'p',
+      parentImpressions: 1000, parentEngagements: 10, parentAuthorHandle: '@x',
+    }, db);
+    const pending = getRepliesNeedingEnrichmentInPeriod('2026-06-01', '2026-06-07', db);
+    expect(pending.map((r) => r.post_id)).toEqual(['in1']); // not 'old' (out of period), not 'in2' (enriched)
+  });
 });
 
 describe('snapshot-builder helpers', () => {
@@ -251,6 +272,25 @@ describe('buildSnapshot', () => {
     expect(snap.summary.newFollowsFromReply).toBe(2);
     expect(snap.summary.newFollowsFromOriginal).toBe(5);
     expect(snap.summary.replyImpShare).toBe(0.7); // 140 / 200
+  });
+
+  it('summary counts only content rows within the period, not the whole CSV', () => {
+    const rows = [
+      content({ isReply: true, postedDate: '2026-06-05', impressions: 100, newFollows: 2 }), // in period
+      content({ isReply: false, postedDate: '2026-06-06', impressions: 60, newFollows: 5 }), // in period
+      content({ isReply: true, postedDate: '2026-05-20', impressions: 999, newFollows: 9 }), // OUT of period
+      content({ isReply: false, postedDate: '2026-05-21', impressions: 999, newFollows: 9 }), // OUT of period
+    ];
+    // periodReplies (DB, latest week) align with the in-period reply
+    const periodReplies = [reply({ post_id: 'a', niche: 'security', impressions: 100 })];
+    const snap = buildSnapshot(rows, periodReplies, [], period, 'NOW');
+
+    expect(snap.summary.replyCount).toBe(1);    // only the Jun 5 reply, not the May 20 one
+    expect(snap.summary.originalCount).toBe(1); // only the Jun 6 original
+    expect(snap.summary.newFollowsFromReply).toBe(2); // 9 from out-of-period excluded
+    // summary.replyCount must reconcile with the byNiche reply total
+    const byNicheReplies = snap.byNiche.reduce((s, n) => s + n.replies, 0);
+    expect(snap.summary.replyCount).toBe(byNicheReplies);
   });
 
   it('byNiche always lists all 4 niches in fixed order', () => {
@@ -347,6 +387,70 @@ describe('enricher helpers', () => {
     expect(m.engagements).toBeNull();
     expect(m.authorHandle).toBeNull();
   });
+
+  it('nextBackoffMs grows exponentially and honors Retry-After', () => {
+    expect(nextBackoffMs(0)).toBe(500);
+    expect(nextBackoffMs(1)).toBe(1000);
+    expect(nextBackoffMs(2)).toBe(2000);
+    expect(nextBackoffMs(10)).toBe(10_000); // capped
+    expect(nextBackoffMs(0, 3)).toBe(3000); // Retry-After: 3s wins
+  });
+});
+
+describe('createEnricher (throttle + retry)', () => {
+  // A minimal mock Response.
+  function res(status: number, body: unknown, retryAfter?: string): Response {
+    return {
+      status,
+      ok: status >= 200 && status < 300,
+      headers: { get: (k: string) => (k.toLowerCase() === 'retry-after' ? retryAfter ?? null : null) },
+      json: async () => body,
+    } as unknown as Response;
+  }
+  const tweet = (over: Record<string, unknown>) => ({ tweets: [over] });
+
+  it('retries on 429 then succeeds, returning parent metrics', async () => {
+    const calls: string[] = [];
+    let replyHits = 0;
+    const fetchImpl = (async (url: string) => {
+      calls.push(url);
+      if (url.includes('reply1')) {
+        replyHits += 1;
+        if (replyHits === 1) return res(429, {}); // first attempt rate-limited
+        return res(200, tweet({ id: 'reply1', createdAt: '2026-06-05T03:00:00.000Z', inReplyToId: 'parent1' }));
+      }
+      // parent
+      return res(200, tweet({ id: 'parent1', author: { userName: 'samczsun' }, viewCount: 5000, likeCount: 100 }));
+    }) as unknown as typeof fetch;
+
+    const sleeps: number[] = [];
+    const enrich = createEnricher({
+      fetchImpl, apiKey: 'k', qps: 1000,
+      sleep: async (ms) => { sleeps.push(ms); },
+    });
+
+    const out = await enrich('reply1');
+    expect(replyHits).toBe(2); // one 429 retry
+    expect(out.hour).toBe(10);
+    expect(out.parentTweetId).toBe('parent1');
+    expect(out.parentImpressions).toBe(5000);
+    expect(out.parentEngagements).toBe(100);
+    // a backoff sleep (500ms) happened on the 429
+    expect(sleeps).toContain(500);
+  });
+
+  it('throttles by sleeping to respect the configured QPS', async () => {
+    const fetchImpl = (async () =>
+      res(200, tweet({ id: 'x', createdAt: '2026-06-05T03:00:00.000Z' }))) as unknown as typeof fetch;
+    const sleeps: number[] = [];
+    const enrich = createEnricher({
+      fetchImpl, apiKey: 'k', qps: 10, // 100ms min interval
+      now: () => 0, // frozen clock → every acquire must wait the full interval
+      sleep: async (ms) => { sleeps.push(ms); },
+    });
+    await enrich('only'); // no parent (no inReplyToId) → 1 fetch
+    expect(sleeps).toContain(100); // throttle waited 1000/qps ms
+  });
 });
 
 describe('runReplyAnalyze orchestrator', () => {
@@ -437,8 +541,46 @@ describe('runReplyAnalyze orchestrator', () => {
       parentImpressions: null, parentEngagements: null, parentAuthorHandle: null,
     });
     const res = await runReplyAnalyze({ contentPath, overviewPath: join(dir, 'missing-overview.csv'), enrichFn: stubEnrich, exportFn: () => 'X', db });
-    expect(res.snapshot.period.start).toBe('2026-06-05'); // from content rows (all dated Jun 5)
-    expect(res.snapshot.period.end).toBe('2026-06-05');
+    expect(res.snapshot.period.end).toBe('2026-06-05');   // max content date
+    expect(res.snapshot.period.start).toBe('2026-05-30'); // 7-day window: Jun 5 - 6 days
     expect(res.snapshot.summary.replyCount).toBe(2);
+  });
+
+  it('only enriches and scopes summary to the latest week, keeps older replies in DB', async () => {
+    // content spans two weeks; latest week = Jun 8-14
+    const csv = [
+      'Post id,Date,Post text,Post Link,Impressions,Engagements,New follows',
+      '900,"Mon, May 18, 2026","@samczsun old week reply",,200,2,3', // OLD week
+      '901,"Mon, Jun 8, 2026","@samczsun new week reply",,100,2,1',  // latest week
+      '902,"Wed, Jun 10, 2026","@DefiIgnas new week reply",,80,1,0', // latest week
+      '903,"Sun, Jun 14, 2026","just an original",,500,9,4',          // latest week original
+    ].join('\n') + '\n';
+    const contentPath = join(dir, 'content.csv');
+    writeFileSync(contentPath, csv);
+
+    const enriched: string[] = [];
+    const stubEnrich = async (postId: string) => {
+      enriched.push(postId);
+      return {
+        replyCreatedAt: '2026-06-10T02:00:00.000Z', hour: 9, parentTweetId: 'p' + postId,
+        parentImpressions: 5000, parentEngagements: 100, parentAuthorHandle: '@x',
+      };
+    };
+
+    const res = await runReplyAnalyze({ contentPath, overviewPath: join(dir, 'none.csv'), enrichFn: stubEnrich, exportFn: () => 'X', db });
+
+    // all 3 replies stored (old + 2 new) so weeklyTrend keeps history
+    expect(getAllReplies(db)).toHaveLength(3);
+    // but only the latest-week replies were enriched
+    expect(enriched.sort()).toEqual(['901', '902']);
+    expect(res.enriched).toBe(2);
+    // summary scoped to latest week: 2 replies, 1 original — NOT 3 replies
+    expect(res.snapshot.summary.replyCount).toBe(2);
+    expect(res.snapshot.summary.originalCount).toBe(1);
+    // summary reconciles with byNiche totals
+    const byNicheReplies = res.snapshot.byNiche.reduce((s, n) => s + n.replies, 0);
+    expect(res.snapshot.summary.replyCount).toBe(byNicheReplies);
+    // weeklyTrend spans both weeks (all rows)
+    expect(res.snapshot.weeklyTrend.length).toBeGreaterThanOrEqual(2);
   });
 });
