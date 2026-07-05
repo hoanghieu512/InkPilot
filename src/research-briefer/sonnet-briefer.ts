@@ -136,7 +136,12 @@ export async function generateBriefWithSonnet(
   try {
     const response = await client.messages.create({
       model: AI_MODELS.sonnet,
-      max_tokens: 1000,
+      // Headroom for Sonnet 5's tokenizer (~30% more tokens than Sonnet 4.6 for
+      // the same JSON brief) so the output isn't silently truncated → parse fail.
+      max_tokens: 1300,
+      // Sonnet 5 runs adaptive thinking by default; disable it to preserve the
+      // Sonnet 4.6 behavior and keep the full token budget for the JSON brief.
+      thinking: { type: 'disabled' },
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });

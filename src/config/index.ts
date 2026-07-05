@@ -63,7 +63,7 @@ export function loadConfig(): Config {
 
 export const AI_MODELS = {
   haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
+  sonnet: 'claude-sonnet-5',
 } as const;
 
 export const SCORE_THRESHOLDS = {

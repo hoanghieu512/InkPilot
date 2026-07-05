@@ -26,7 +26,7 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 | **Runtime** | Node.js 20+, TypeScript 5.7, `tsx` | Node.js 20+, TypeScript 5.7, `tsx` |
 | **Database** | SQLite via `better-sqlite3` (sync API, WAL mode) — 8 tables | SQLite qua `better-sqlite3` (sync API, WAL mode) — 8 bảng |
 | **AI — Filter** | Anthropic SDK — Claude Haiku (`claude-haiku-4-5-20251001`): batch relevance scoring (10 articles/call), decimal scores | Anthropic SDK — Claude Haiku: chấm điểm hàng loạt (10 bài/call), điểm decimal |
-| **AI — Brief** | Anthropic SDK — Claude Sonnet (`AI_MODELS.sonnet` → `claude-sonnet-4-6`): per-article brief, bilingual angles (strict hook-first prompts), cached | Anthropic SDK — Claude Sonnet: brief từng bài, song ngữ, có cache |
+| **AI — Brief** | Anthropic SDK — Claude Sonnet (`AI_MODELS.sonnet` → `claude-sonnet-5`, adaptive thinking disabled): per-article brief, bilingual angles (strict hook-first prompts), cached | Anthropic SDK — Claude Sonnet: brief từng bài, song ngữ, có cache |
 | **Model IDs** | `AI_MODELS` in `src/config/index.ts` — `haiku` + `sonnet` strings shared by Haiku filter and Sonnet briefer | `AI_MODELS` trong `src/config/index.ts` — cấu hình model tập trung |
 | **Vault export** | After each `npm run brief`, fills `~/Dev/vault/templates/angle-template.md` (`__KEY__` placeholders) → writes `~/Dev/vault/projects/content-creator/angles/*.md` for Obsidian | Sau mỗi brief: điền template → ghi `.md` vào vault (Obsidian) |
 | **RSS** | `rss-parser` — parallel multi-feed scraping with 10s timeout | `rss-parser` — scrape nhiều nguồn song song, timeout 10 giây |

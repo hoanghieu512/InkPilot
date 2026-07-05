@@ -18,12 +18,12 @@ export const KOL_NICHES: KolNicheConfig[] = [
   { handle: 'peckshieldalert', niche: 'security' },
   { handle: 'peckshield', niche: 'security' },
   { handle: 'slowmist', niche: 'security' },
-  { handle: 'officer_cia', niche: 'security' },
+  { handle: 'officer_secret', niche: 'security' },
   { handle: 'zachxbt', niche: 'security' },
   // Tokenomics / DeFi
   { handle: 'defiignas', niche: 'tokenomics' },
   { handle: 'stanikulechov', niche: 'tokenomics' },
-  { handle: 'bantg', niche: 'tokenomics' },
+  { handle: 'banteg', niche: 'tokenomics' },
   // L1/L2 infra
   { handle: '0xmert_', niche: 'l1l2' },
   { handle: 'aeyakovenko', niche: 'l1l2' },

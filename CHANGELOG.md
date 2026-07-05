@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.2] - 2026-07-05
+### Changed
+- **Sonnet brief model upgraded to Sonnet 5** (`claude-sonnet-4-6` → `claude-sonnet-5` in `AI_MODELS.sonnet`, the single source of truth). Haiku scoring is unchanged.
+- **`sonnet-briefer` hardened for the Sonnet 5 API surface**: added `thinking: { type: 'disabled' }` (Sonnet 5 runs adaptive thinking by default, unlike Sonnet 4.6 — leaving it on would eat the output-token budget) and raised `max_tokens` 1000 → 1300 to absorb Sonnet 5's new tokenizer (~30% more tokens for the same JSON brief) so briefs aren't silently truncated into a parse failure. Pricing constants ($3/$15 per MTok) unchanged — matches Sonnet 5's standard rate.
+
 ## [0.5.1] - 2026-06-14
 ### Fixed
 - **`summary` now scoped to the period, not the whole CSV** (FIX 1): X Analytics CSVs export ~28 days, but `summary` was aggregating every row (e.g. 224 replies) while `period.label` + `byKol`/`byNiche`/`byHour` showed only the latest week (e.g. 34) — so the Newsroom dashboard read "this week: 224 replies" wrongly. `derivePeriod` now returns a 7-day window ending at the max CSV date (the latest week), and `buildSnapshot` filters content rows to that window before computing `summary`. `summary.replyCount` now reconciles with the sum of `byNiche.replies`. `weeklyTrend` is unchanged — still computed across all accumulated DB rows (the only cross-week block).

@@ -58,7 +58,7 @@ npm test                         # vitest run — 78 tests, in-memory SQLite
 | `src/reply-tracking/index.ts` | `runReplyAnalyze` orchestrator — CSV → enrich → reply_tracking → snapshot |
 | `src/config/kol-niches.ts` | KOL handle→niche map (synced by hand from vault `kol-reply-list.md`) |
 
-## Current version: v0.5.1
+## Current version: v0.5.2
 
 ## Current state
 

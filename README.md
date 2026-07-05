@@ -43,7 +43,7 @@ Chi tiết kiến trúc, luồng dữ liệu và module: xem **[PROJECT_OVERVIEW
 | Runtime | Node.js 20+, TypeScript 5.7, `tsx` |
 | Database | SQLite via `better-sqlite3` (sync API) |
 | AI — Filter | Anthropic SDK — Claude Haiku (`claude-haiku-4-5-20251001`): batch relevance scoring |
-| AI — Brief | Anthropic SDK — Claude Sonnet (`claude-sonnet-4-6`): research brief generation |
+| AI — Brief | Anthropic SDK — Claude Sonnet (`claude-sonnet-5`): research brief generation |
 | Reply enrichment | TwitterAPI.io via native `fetch` (`TWITTERAPI_IO_KEY`) — parent-tweet metrics + reply hour |
 | RSS | `rss-parser` |
 | Config | `dotenv` + `.env`; `AI_MODELS` (`haiku` / `sonnet`) trong `src/config/index.ts` — đổi model một chỗ cho toàn app |
@@ -414,6 +414,8 @@ Sonnet brief cho mỗi article, cá nhân hóa theo voice/tone của user:
 - [x] **v0.4.2** — List footer shows `"X of Y"` total count when limit is hit; refactored `list.ts` condition builder
 - [x] **v0.4.3** — Haiku niche priority stack (Security > Tokenomics > L1/L2 Infra); fix process hang on fetch/brief completion
 - [x] **v0.5.0** — Reply Tracking: `reply_tracking` table + `npm run reply:analyze` (X Analytics CSV → KOL niche → TwitterAPI.io enrichment → snapshot JSON for Newsroom); `kol-niches.ts` config; `TWITTERAPI_IO_KEY`
+- [x] **v0.5.1** — Fix `reply:analyze` scope + enrichment: `summary`/enrichment scoped to latest week, idempotent re-runs, QPS throttle + 429 backoff (`TWITTERAPI_IO_QPS`)
+- [x] **v0.5.2** — Brief model → **Claude Sonnet 5** (`claude-sonnet-5`); disable adaptive thinking + raise `max_tokens` 1000 → 1300 for the new tokenizer
 - [ ] **Slice 5** — X API Adapter (publish to Twitter)
 - [ ] **Slice 6** — TUI / Ink (interactive terminal UI)
 - [ ] **Future** — realtime Reply Monitor (builds on the `reply_tracking` data layer)
