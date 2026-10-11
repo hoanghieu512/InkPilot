@@ -5,8 +5,9 @@ import type { ArticleToScore, FilterResult, BatchFilterResult } from './types.js
 
 const logger = createLogger('content-filter:haiku');
 
-const HAIKU_INPUT_PRICE_PER_TOKEN = 0.80 / 1_000_000;
-const HAIKU_OUTPUT_PRICE_PER_TOKEN = 4.00 / 1_000_000;
+// Haiku 5.5 rate card for prompts <= 100K tokens (scoring batches are far below that).
+const HAIKU_INPUT_PRICE_PER_TOKEN = 0.10 / 1_000_000;
+const HAIKU_OUTPUT_PRICE_PER_TOKEN = 0.50 / 1_000_000;
 
 const SYSTEM_PROMPT = `You are a content filter for a crypto/Web3 content creator who writes personal takes on X (Twitter).
 
@@ -112,6 +113,11 @@ IMPORTANT: "category" must be exactly one of: L2, DeFi, AI x Crypto, Developer T
     const response = await client.messages.create({
       model: AI_MODELS.haiku,
       max_tokens: 4096,
+      // Haiku 5.5 runs adaptive thinking by default (Haiku 4.5 did not); disable it
+      // to keep the 4.5 scoring behavior and the full token budget for the JSON array.
+      // `disabled` is only accepted at effort `high` or below.
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'medium' },
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     });
@@ -119,6 +125,14 @@ IMPORTANT: "category" must be exactly one of: L2, DeFi, AI x Crypto, Developer T
     const tokensIn = response.usage.input_tokens;
     const tokensOut = response.usage.output_tokens;
     const costUsd = tokensIn * HAIKU_INPUT_PRICE_PER_TOKEN + tokensOut * HAIKU_OUTPUT_PRICE_PER_TOKEN;
+
+    // Haiku 5.5 safety classifiers can decline (no server-side fallback on Haiku).
+    // Treat as a failed call: articles stay `new` and are retried next run, instead
+    // of being locked in with a fallback score (scoring is one-way).
+    if (response.stop_reason === 'refusal') {
+      logger.warn(`Haiku refused batch (category: ${response.stop_details?.category ?? 'unknown'}) — articles stay new`);
+      return { results: [], totalTokensIn: tokensIn, totalTokensOut: tokensOut, estimatedCostUsd: costUsd, hotCount: 0, otherCount: 0, dismissedCount: 0 };
+    }
 
     const textBlock = response.content.find((b) => b.type === 'text');
     if (!textBlock || textBlock.type !== 'text') {

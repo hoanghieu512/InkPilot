@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.3] - 2026-10-11
+### Changed
+- **Both models upgraded** — `AI_MODELS.haiku` `claude-haiku-4-5-20251001` → `claude-haiku-5-5`, `AI_MODELS.sonnet` `claude-sonnet-5` → `claude-sonnet-5-5` (single source of truth, `src/config/index.ts`).
+- **`haiku-filter` pinned to no-thinking**: Haiku 5.5 runs adaptive thinking by default (Haiku 4.5 did not), which would eat the 4096-token budget for the JSON array; now sends `thinking: { type: 'disabled' }` + explicit `output_config: { effort: 'medium' }` (Haiku 5.5's default; `disabled` is only accepted at `high` or below). Keeps 4.5 scoring behavior.
+- **`sonnet-briefer` migrated to the Sonnet 5.5 API surface**: `thinking: { type: 'disabled' }` now returns a 400 on Sonnet 5.5 — replaced with `{ type: 'between_tools' }` (its no-thinking mode) + explicit `effort: 'high'`. Call moved to `client.beta.messages.create` with server-side fallback (`betas: ['server-side-fallback-2026-07-01']`, `fallbacks: 'default'`) so `cyber` / `frontier_llm` declines on security-heavy articles are re-run on Sonnet 5 inside the same call; logs when a fallback model served the brief.
+- **Pricing constants updated**: Haiku $0.80/$4.00 → $0.10/$0.50 per MTok (Haiku 5.5, prompts ≤ 100K tokens); Sonnet $3/$15 → $2/$10 (Sonnet 5.5 — also the Sonnet 5 rate, so the v0.5.2 constants were overstated). Cost tests now assert against the exported constants instead of local copies.
+- **`@anthropic-ai/sdk` 0.90.0 → 0.133.0** — needed for typed `between_tools`, `fallbacks`, and the new model IDs.
+
+### Added
+- **Refusal handling** (Haiku 5.5 / Sonnet 5.5 run safety classifiers; refusals are new for the Haiku path): Haiku `stop_reason: 'refusal'` → batch returns no results so articles stay `new` and are retried next run (instead of being locked in with fallback score 5 — scoring is one-way); Sonnet refusal (after fallback) → failure brief `(Brief generation failed — model refused: <category>)` with no token counts, so it is not cached.
+- 4 tests (82 total): Haiku/Sonnet request params, Haiku refusal, Sonnet refusal.
+
 ## [0.5.2] - 2026-07-05
 ### Changed
 - **Sonnet brief model upgraded to Sonnet 5** (`claude-sonnet-4-6` → `claude-sonnet-5` in `AI_MODELS.sonnet`, the single source of truth). Haiku scoring is unchanged.

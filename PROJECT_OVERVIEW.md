@@ -25,8 +25,8 @@ Content creator và researcher crypto muốn **pipeline nghiên cứu có cấu 
 |-------------|----|----|
 | **Runtime** | Node.js 20+, TypeScript 5.7, `tsx` | Node.js 20+, TypeScript 5.7, `tsx` |
 | **Database** | SQLite via `better-sqlite3` (sync API, WAL mode) — 8 tables | SQLite qua `better-sqlite3` (sync API, WAL mode) — 8 bảng |
-| **AI — Filter** | Anthropic SDK — Claude Haiku (`claude-haiku-4-5-20251001`): batch relevance scoring (10 articles/call), decimal scores | Anthropic SDK — Claude Haiku: chấm điểm hàng loạt (10 bài/call), điểm decimal |
-| **AI — Brief** | Anthropic SDK — Claude Sonnet (`AI_MODELS.sonnet` → `claude-sonnet-5`, adaptive thinking disabled): per-article brief, bilingual angles (strict hook-first prompts), cached | Anthropic SDK — Claude Sonnet: brief từng bài, song ngữ, có cache |
+| **AI — Filter** | Anthropic SDK — Claude Haiku (`AI_MODELS.haiku` → `claude-haiku-5-5`, thinking disabled): batch relevance scoring (10 articles/call), decimal scores | Anthropic SDK — Claude Haiku: chấm điểm hàng loạt (10 bài/call), điểm decimal |
+| **AI — Brief** | Anthropic SDK — Claude Sonnet (`AI_MODELS.sonnet` → `claude-sonnet-5-5`, `between_tools` = no thinking, server-side fallback to Sonnet 5 on `cyber`/`frontier_llm` refusals): per-article brief, bilingual angles (strict hook-first prompts), cached | Anthropic SDK — Claude Sonnet: brief từng bài, song ngữ, có cache |
 | **Model IDs** | `AI_MODELS` in `src/config/index.ts` — `haiku` + `sonnet` strings shared by Haiku filter and Sonnet briefer | `AI_MODELS` trong `src/config/index.ts` — cấu hình model tập trung |
 | **Vault export** | After each `npm run brief`, fills `~/Dev/vault/templates/angle-template.md` (`__KEY__` placeholders) → writes `~/Dev/vault/projects/content-creator/angles/*.md` for Obsidian | Sau mỗi brief: điền template → ghi `.md` vào vault (Obsidian) |
 | **RSS** | `rss-parser` — parallel multi-feed scraping with 10s timeout | `rss-parser` — scrape nhiều nguồn song song, timeout 10 giây |
@@ -409,10 +409,10 @@ Scoring rubric (aligned to `SCORE_THRESHOLDS.HOT = 7.5`):
 
 | Metric | Value |
 |--------|-------|
-| Model | `AI_MODELS.haiku` (`claude-haiku-4-5-20251001`) |
+| Model | `AI_MODELS.haiku` (`claude-haiku-5-5`), `thinking: disabled`, `effort: medium` |
 | Batch size | 10 articles/call |
-| Pricing | $0.80/1M input, $4.00/1M output |
-| Real-world cost | ~$0.50 per 1000 articles scored |
+| Pricing | $0.10/1M input, $0.50/1M output (prompts ≤ 100K tokens) |
+| Real-world cost | ~$0.10 per 1000 articles scored (estimate — re-baseline after a few runs) |
 
 ### 9.2 Sonnet Brief — Research assistant
 
@@ -428,10 +428,10 @@ Scoring rubric (aligned to `SCORE_THRESHOLDS.HOT = 7.5`):
 
 | Metric | Value |
 |--------|-------|
-| Model | `AI_MODELS.sonnet` (`claude-sonnet-4-6`) |
-| Max tokens | 1000 |
-| Pricing | $3.00/1M input, $15.00/1M output |
-| Real-world cost | ~$0.01 per brief |
+| Model | `AI_MODELS.sonnet` (`claude-sonnet-5-5`), `thinking: between_tools`, `effort: high`, `fallbacks: 'default'` (beta) |
+| Max tokens | 1300 |
+| Pricing | $2.00/1M input, $10.00/1M output |
+| Real-world cost | ~$0.008 per brief |
 
 ---
 
@@ -443,6 +443,8 @@ Scoring rubric (aligned to `SCORE_THRESHOLDS.HOT = 7.5`):
 | **No scheduler** — `npm run fetch` runs manually or via external cron. | **Không có scheduler** — `npm run fetch` chạy tay hoặc cron ngoài. |
 | **No X API yet** — posts table exists but no publishing adapter (Slice 5). | **Chưa có X API** — bảng posts đã có nhưng chưa có adapter đăng bài (Slice 5). |
 | **`recasts` column name** — `post_metrics` table still uses `recasts`; will rename to `reposts` in X adapter slice. | **Tên cột `recasts`** — bảng `post_metrics` vẫn dùng `recasts`; sẽ đổi thành `reposts` khi làm X adapter. |
+| **Score calibration carried over from Haiku 4.5** — `SCORE_THRESHOLDS` (HOT 7.5 / OTHER 6.0) were tuned on Haiku 4.5; Haiku 5.5 may distribute scores differently. Re-check with `stats:scoring` + `inspect:near-hot` after a few fetches. | **Ngưỡng điểm tune trên Haiku 4.5** — HOT 7.5 / OTHER 6.0 có thể lệch với Haiku 5.5; kiểm tra lại bằng `stats:scoring` + `inspect:near-hot` sau vài lần fetch. |
+| **Refusals** — Haiku 5.5 / Sonnet 5.5 safety classifiers can decline. Refused Haiku batch → articles stay `new`, retried next run (no server-side fallback on Haiku, so a batch that keeps refusing is retried every run). Refused brief → not cached. | **Refusal** — classifier của Haiku/Sonnet 5.5 có thể từ chối. Batch Haiku bị từ chối → bài giữ `new`, chấm lại lần sau. Brief bị từ chối → không cache. |
 | **Sequential Haiku batches** — batches run one at a time; 1000 articles takes ~15 minutes. | **Batch Haiku tuần tự** — batch chạy lần lượt; 1000 bài mất ~15 phút. |
 | **903 articles with integer scores** — pre-decimal-fix articles still have whole-number scores; not re-scored. | **903 bài có score số nguyên** — các bài score trước khi fix decimal vẫn giữ score cũ; không re-score. |
 | **TwitterAPI.io schema unverified** — the live field mapping in `enricher.ts` (`mapTweet`/`fetchTweet`) is an assumption flagged `// VERIFY`; unit tests pin the mapping but never hit the network. Run `reply:analyze` once with a real `TWITTERAPI_IO_KEY` and confirm `byHour` + `parentSizeCorrelation` populate. | **Schema TwitterAPI.io chưa verify** — field mapping trong `enricher.ts` là giả định (`// VERIFY`); test pin mapping nhưng không gọi mạng. Chạy thật 1 lần với `TWITTERAPI_IO_KEY` để xác nhận `byHour` + `parentSizeCorrelation` có data. |

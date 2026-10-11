@@ -142,15 +142,15 @@ describe('scoring + article state integration', () => {
 });
 
 describe('cost calculation', () => {
-  it('calculates correct USD estimate from token counts', () => {
-    const HAIKU_INPUT_PRICE = 0.80 / 1_000_000;
-    const HAIKU_OUTPUT_PRICE = 4.00 / 1_000_000;
+  it('calculates correct USD estimate from token counts', async () => {
+    const { HAIKU_INPUT_PRICE_PER_TOKEN, HAIKU_OUTPUT_PRICE_PER_TOKEN } = await import('../src/content-filter/haiku-filter.js');
 
     const tokensIn = 5000;
     const tokensOut = 2000;
-    const cost = tokensIn * HAIKU_INPUT_PRICE + tokensOut * HAIKU_OUTPUT_PRICE;
+    const cost = tokensIn * HAIKU_INPUT_PRICE_PER_TOKEN + tokensOut * HAIKU_OUTPUT_PRICE_PER_TOKEN;
 
-    expect(cost).toBeCloseTo(0.012, 4);
+    // Haiku 5.5: $0.10 / $0.50 per MTok (prompt <= 100K tokens)
+    expect(cost).toBeCloseTo(0.0015, 6);
   });
 });
 
@@ -213,6 +213,60 @@ describe('scoreArticles with mocked Anthropic', () => {
     expect(result.results).toHaveLength(1);
     expect(result.results[0]!.score).toBe(5);
     expect(result.results[0]!.reasoning).toContain('Fallback');
+
+    vi.doUnmock('@anthropic-ai/sdk');
+  });
+
+  it('sends Haiku 5.5 request with thinking disabled and explicit effort', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify([{ id: 1, score: 8, category: 'L2', reasoning: 'r', suggestedAngle: 'a' }]) }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+    vi.doMock('@anthropic-ai/sdk', () => ({
+      default: vi.fn().mockImplementation(() => ({ messages: { create } })),
+    }));
+
+    const { scoreArticles } = await import('../src/content-filter/haiku-filter.js');
+    const { AI_MODELS } = await import('../src/config/index.js');
+
+    await scoreArticles([
+      { id: 1, title: 'L2 Update', contentSnippet: null, sourceSlug: 'test', sourceName: 'Test', language: 'en', publishedAt: null },
+    ]);
+
+    expect(AI_MODELS.haiku).toBe('claude-haiku-5-5');
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'claude-haiku-5-5',
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'medium' },
+    }));
+
+    vi.doUnmock('@anthropic-ai/sdk');
+  });
+
+  it('returns empty results on refusal so articles stay new (no fallback score)', async () => {
+    vi.doMock('@anthropic-ai/sdk', () => ({
+      default: vi.fn().mockImplementation(() => ({
+        messages: {
+          create: vi.fn().mockResolvedValue({
+            content: [],
+            stop_reason: 'refusal',
+            stop_details: { type: 'refusal', category: 'cyber', explanation: null },
+            usage: { input_tokens: 300, output_tokens: 0 },
+          }),
+        },
+      })),
+    }));
+
+    const { scoreArticles } = await import('../src/content-filter/haiku-filter.js');
+
+    const result = await scoreArticles([
+      { id: 101, title: 'Bridge exploit post-mortem', contentSnippet: null, sourceSlug: 'test', sourceName: 'Test', language: 'en', publishedAt: null },
+    ]);
+
+    expect(result.results).toHaveLength(0);
+    expect(result.totalTokensIn).toBe(300);
+    expect(result.estimatedCostUsd).toBeGreaterThan(0);
 
     vi.doUnmock('@anthropic-ai/sdk');
   });

@@ -1,6 +1,6 @@
 {
   "name": "inkpilot",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
+    "@anthropic-ai/sdk": "^0.133.0",
     "better-sqlite3": "^11.0.0",
     "dotenv": "^16.4.5",
     "rss-parser": "^3.13.0"

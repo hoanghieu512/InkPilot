@@ -10,8 +10,8 @@ import type { RelatedArticle, SuggestedAngles, Brief } from './types.js';
 
 const logger = createLogger('research-briefer:sonnet');
 
-const SONNET_INPUT_PRICE_PER_TOKEN = 3.00 / 1_000_000;
-const SONNET_OUTPUT_PRICE_PER_TOKEN = 15.00 / 1_000_000;
+const SONNET_INPUT_PRICE_PER_TOKEN = 2.00 / 1_000_000;
+const SONNET_OUTPUT_PRICE_PER_TOKEN = 10.00 / 1_000_000;
 
 let clientInstance: Anthropic | null = null;
 
@@ -134,17 +134,43 @@ export async function generateBriefWithSonnet(
   const userPrompt = buildUserPrompt(article, filterResult, relatedArticles);
 
   try {
-    const response = await client.messages.create({
+    const response = await client.beta.messages.create({
       model: AI_MODELS.sonnet,
-      // Headroom for Sonnet 5's tokenizer (~30% more tokens than Sonnet 4.6 for
+      // Headroom for the Sonnet 5+ tokenizer (~30% more tokens than Sonnet 4.6 for
       // the same JSON brief) so the output isn't silently truncated → parse fail.
       max_tokens: 1300,
-      // Sonnet 5 runs adaptive thinking by default; disable it to preserve the
-      // Sonnet 4.6 behavior and keep the full token budget for the JSON brief.
-      thinking: { type: 'disabled' },
+      // Sonnet 5.5 rejects `disabled` (400); `between_tools` is its no-thinking mode,
+      // keeping the full token budget for the JSON brief. Requires effort `high` or below.
+      thinking: { type: 'between_tools' },
+      output_config: { effort: 'high' },
+      // Security-heavy articles can trip the cyber classifier; server-side fallback
+      // re-runs `cyber` / `frontier_llm` declines on Sonnet 5 within the same call.
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
+
+    if (response.stop_reason === 'refusal') {
+      const category = response.stop_details?.category ?? 'unknown';
+      logger.warn(`Sonnet refused brief (category: ${category})`);
+      return {
+        articleId: article.id,
+        articleTitle: article.title,
+        articleUrl: article.url,
+        sourceSlug,
+        sourceName,
+        publishedAt: article.published_at ?? 'Unknown',
+        score: filterResult.score,
+        whyItMatters: `(Brief generation failed — model refused: ${category})`,
+        relatedArticles,
+        suggestedAngles: { vietnamese: [], english: [] },
+      };
+    }
+
+    if (response.model !== AI_MODELS.sonnet) {
+      logger.info(`Brief served by fallback model ${response.model}`);
+    }
 
     const tokensIn = response.usage.input_tokens;
     const tokensOut = response.usage.output_tokens;

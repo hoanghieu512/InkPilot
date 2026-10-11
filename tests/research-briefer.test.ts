@@ -149,11 +149,14 @@ describe('generateBrief with mocked Sonnet', () => {
 
     vi.doMock('@anthropic-ai/sdk', () => ({
       default: vi.fn().mockImplementation(() => ({
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            content: [{ type: 'text', text: JSON.stringify(mockResponse) }],
-            usage: { input_tokens: 1200, output_tokens: 380 },
-          }),
+        beta: {
+          messages: {
+            create: vi.fn().mockResolvedValue({
+              content: [{ type: 'text', text: JSON.stringify(mockResponse) }],
+              stop_reason: 'end_turn',
+              usage: { input_tokens: 1200, output_tokens: 380 },
+            }),
+          },
         },
       })),
     }));
@@ -205,8 +208,10 @@ describe('generateBrief with mocked Sonnet', () => {
   it('returns partial brief on Sonnet API failure (no crash)', async () => {
     vi.doMock('@anthropic-ai/sdk', () => ({
       default: vi.fn().mockImplementation(() => ({
-        messages: {
-          create: vi.fn().mockRejectedValue(new Error('API key invalid')),
+        beta: {
+          messages: {
+            create: vi.fn().mockRejectedValue(new Error('API key invalid')),
+          },
         },
       })),
     }));
@@ -236,6 +241,87 @@ describe('generateBrief with mocked Sonnet', () => {
     vi.doUnmock('@anthropic-ai/sdk');
   });
 
+  it('sends Sonnet 5.5 request with between_tools thinking and server-side fallback', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify({ whyItMatters: 'x', suggestedAngles: { vietnamese: [], english: [] } }) }],
+      stop_reason: 'end_turn',
+      model: 'claude-sonnet-5-5',
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+    vi.doMock('@anthropic-ai/sdk', () => ({
+      default: vi.fn().mockImplementation(() => ({ beta: { messages: { create } } })),
+    }));
+
+    const { generateBriefWithSonnet } = await import('../src/research-briefer/sonnet-briefer.js');
+    const { AI_MODELS } = await import('../src/config/index.js');
+
+    const article = {
+      id: 3, url: 'https://example.com/a', title: 'A',
+      content: null, summary: null, author: null,
+      published_at: null, source_id: null,
+      og_image_url: null, fetched_at: new Date().toISOString(), raw_data: null,
+    };
+    const filterResult = {
+      id: 3, article_id: 3, score: 8, category: 'L2', reasoning: 'Test',
+      suggested_angle: null, ai_context: null, model: 'haiku',
+      input_tokens: 0, output_tokens: 0, scored_at: new Date().toISOString(),
+    };
+
+    await generateBriefWithSonnet(article, filterResult, 'Test', 'test', [], '');
+
+    expect(AI_MODELS.sonnet).toBe('claude-sonnet-5-5');
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'claude-sonnet-5-5',
+      thinking: { type: 'between_tools' },
+      output_config: { effort: 'high' },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+    }));
+
+    vi.doUnmock('@anthropic-ai/sdk');
+  });
+
+  it('returns uncacheable failure brief on refusal', async () => {
+    vi.doMock('@anthropic-ai/sdk', () => ({
+      default: vi.fn().mockImplementation(() => ({
+        beta: {
+          messages: {
+            create: vi.fn().mockResolvedValue({
+              content: [],
+              stop_reason: 'refusal',
+              stop_details: { type: 'refusal', category: 'general_harms', explanation: null },
+              model: 'claude-sonnet-5-5',
+              usage: { input_tokens: 900, output_tokens: 0 },
+            }),
+          },
+        },
+      })),
+    }));
+
+    const { generateBriefWithSonnet } = await import('../src/research-briefer/sonnet-briefer.js');
+
+    const article = {
+      id: 4, url: 'https://example.com/r', title: 'R',
+      content: null, summary: null, author: null,
+      published_at: null, source_id: null,
+      og_image_url: null, fetched_at: new Date().toISOString(), raw_data: null,
+    };
+    const filterResult = {
+      id: 4, article_id: 4, score: 8, category: 'L2', reasoning: 'Test',
+      suggested_angle: null, ai_context: null, model: 'haiku',
+      input_tokens: 0, output_tokens: 0, scored_at: new Date().toISOString(),
+    };
+
+    const result = await generateBriefWithSonnet(article, filterResult, 'Test', 'test', [], '');
+
+    expect(result.whyItMatters).toContain('refused');
+    expect(result.whyItMatters).toContain('general_harms');
+    // tokensIn undefined → runBrief treats it as failed and does not cache it
+    expect(result.tokensIn).toBeUndefined();
+
+    vi.doUnmock('@anthropic-ai/sdk');
+  });
+
   it('user context files not found — falls back gracefully', async () => {
     vi.doMock('fs', async () => {
       const actual = await vi.importActual<typeof import('fs')>('fs');
@@ -260,14 +346,14 @@ describe('generateBrief with mocked Sonnet', () => {
 });
 
 describe('Sonnet cost calculation', () => {
-  it('calculates correct USD estimate from token counts', () => {
-    const SONNET_INPUT_PRICE = 3.00 / 1_000_000;
-    const SONNET_OUTPUT_PRICE = 15.00 / 1_000_000;
+  it('calculates correct USD estimate from token counts', async () => {
+    const { SONNET_INPUT_PRICE_PER_TOKEN, SONNET_OUTPUT_PRICE_PER_TOKEN } = await import('../src/research-briefer/sonnet-briefer.js');
 
     const tokensIn = 1200;
     const tokensOut = 380;
-    const cost = tokensIn * SONNET_INPUT_PRICE + tokensOut * SONNET_OUTPUT_PRICE;
+    const cost = tokensIn * SONNET_INPUT_PRICE_PER_TOKEN + tokensOut * SONNET_OUTPUT_PRICE_PER_TOKEN;
 
-    expect(cost).toBeCloseTo(0.0093, 4);
+    // Sonnet 5.5: $2 / $10 per MTok
+    expect(cost).toBeCloseTo(0.0062, 6);
   });
 });

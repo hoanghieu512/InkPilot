@@ -21,7 +21,7 @@ npm run sources:status           # per-source health table (no API key needed)
 npm run stats:scoring            # scoring histogram + HOT/OTHER/dismissed ratio (--days=N)
 npm run stats:sources            # per-source HOT rate table (--days=N)
 npm run inspect:near-hot         # score 7–7.4 articles + full Haiku reasoning (--limit=N --days=N)
-npm test                         # vitest run — 78 tests, in-memory SQLite
+npm test                         # vitest run — 82 tests, in-memory SQLite
 ```
 
 ## Architecture essentials
@@ -58,7 +58,7 @@ npm test                         # vitest run — 78 tests, in-memory SQLite
 | `src/reply-tracking/index.ts` | `runReplyAnalyze` orchestrator — CSV → enrich → reply_tracking → snapshot |
 | `src/config/kol-niches.ts` | KOL handle→niche map (synced by hand from vault `kol-reply-list.md`) |
 
-## Current version: v0.5.2
+## Current version: v0.5.3
 
 ## Current state
 
@@ -78,7 +78,7 @@ npm test                         # vitest run — 78 tests, in-memory SQLite
 
 After each implementation, run in order:
 
-1. `npm test` — all 78 tests must pass
+1. `npm test` — all 82 tests must pass
 2. `tsc --noEmit` — must pass clean before bumping version
 3. Bump `"version"` in `package.json`
 4. Update `## Current version:` in `CLAUDE.md`
@@ -90,7 +90,7 @@ After each implementation, run in order:
 
 ## Test conventions
 
-Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 5 test files in `tests/`, all 78 tests must pass before any PR.
+Tests use in-memory SQLite — call `resetDb()` before each `createTestDb()`. Mock Anthropic SDK with `vi.spyOn`. Never make real HTTP or API calls in tests. All 5 test files in `tests/`, all 82 tests must pass before any PR.
 
 ## Don't
 
